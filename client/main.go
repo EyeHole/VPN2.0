@@ -8,7 +8,7 @@ import (
 	"net"
 	"os"
 
-	commands "github.com/VPN2.0/cmd"
+	commands "VPN2.0/cmd"
 )
 
 const (
@@ -28,11 +28,12 @@ func requestCreateNetwork() error {
 	if err != nil {
 		return err
 	}
+	fmt.Println("sent")
 	return nil
 }
 
 func processCmd(cmd string) error {
-	switch(cmd) {
+	switch cmd {
 	case commands.CreateCmd:
 		return requestCreateNetwork()
 	default:
@@ -40,23 +41,16 @@ func processCmd(cmd string) error {
 	}
 }
 
-func runClient() error {
+func RunClient() error {
 	fmt.Println("Enter cmd:")
 	var cmd string
 	for {
-		_, err := fmt.Scanf("%s", cmd)
+		_, err := fmt.Scanf("%s", &cmd)
 		if err != nil {
 			return err
 		}
 		if err := processCmd(cmd); err != nil {
 			return err
 		}
-	}
-}
-
-func main() {
-	err := runClient()
-	if err != nil {
-		fmt.Println(err)
 	}
 }
