@@ -1,16 +1,16 @@
 package server
 
 import (
+	commands "VPN2.0/cmd"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"strconv"
-
-	commands "VPN2.0/cmd"
 )
 
 const (
-	readLimit = 2048
+	bufferSize = 32
+	readLimit  = 2048
 	serverAddr = "localhost:8080"
 )
 
@@ -29,7 +29,7 @@ func RunServer() error {
 		errCh := make(chan error)
 		go handleClient(conn, errCh)
 		select {
-		case err := <- errCh:
+		case err := <-errCh:
 			return err
 		}
 
@@ -59,34 +59,40 @@ func handleClient(conn net.Conn, errCh chan error) {
 		}
 	}()
 
-	//var cmd string
-	//buf := make([]byte, 32)
-	//for len(cmd) < readLimit {
-	//	readLen, err := conn.Read(buf)
-	//	if err != nil {
-	//		if err != io.EOF {
-	//			errCh <- err
-	//		} else {
-	//			fmt.Println("got EOF")
-	//		}
-	//		break
-	//	}
-	//	fmt.Println("readLen: " + strconv.Itoa(readLen))
-	//	cmd += string(buf)
-	//}
+	var cmd string
 
-	stringmy := ""
-	readLen, err := fmt.Fprintf(conn, "%s", stringmy)
-	fmt.Println("readLen: " + strconv.Itoa(readLen) + ", str: " + stringmy)
-	buf, err := ioutil.ReadAll(conn)
-	if err != nil {
-		errCh <- err
+	for {
+		buf := make([]byte, 32)
+		readLen, err := conn.Read(buf)
+		if err != nil {
+			if err != io.EOF {
+				fmt.Println("wowowowowo")
+				errCh <- err
+			} else {
+				fmt.Println("got EOF")
+			}
+			break
+		}
+		if readLen == 0 {
+			fmt.Println("wow")
+		}
+		fmt.Println("readLen: " + strconv.Itoa(readLen))
+		cmd += string(buf)
 	}
 
-	cmd := string(buf)
-
-	fmt.Println("got cmd:" + cmd)
-	err = processCmd(cmd, conn)
+	//_, err := fmt.Fprintf(conn, "GET / HTTP/1.0\r\n\r\n")
+	//if err != nil {
+	//	errCh <- err
+	//}
+	//buf, err := ioutil.ReadAll(conn)
+	//if err != nil {
+	//	errCh <- err
+	//}
+	//fmt.Println("hey")
+	//cmd := string(buf)
+	//
+	//fmt.Println("got cmd:" + cmd)
+	err := processCmd(cmd, conn)
 	if err != nil {
 		errCh <- err
 	}
