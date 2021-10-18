@@ -21,14 +21,17 @@ func copyTo(dst io.Writer, src io.Reader) {
 	}
 }
 
-func requestCreateNetwork() error {
+func requestCreateNetwork() (err error) {
 	conn, _ := net.Dial("tcp", serverAddr)
 	go copyTo(os.Stdout, conn)
-	_, err := conn.Write([]byte(commands.CreateCmd))
+
+	_, err = conn.Write([]byte(commands.CreateCmd + "\n"))
 	if err != nil {
 		return err
 	}
+
 	fmt.Println("sent")
+
 	return nil
 }
 

@@ -2,16 +2,16 @@ package server
 
 import (
 	commands "VPN2.0/cmd"
+	"bufio"
 	"fmt"
 	"io"
 	"net"
-	"strconv"
+	"strings"
 )
 
 const (
-	bufferSize = 32
-	readLimit  = 2048
-	serverAddr = "localhost:8080"
+	cmdLenLimit = 32
+	serverAddr  = "localhost:8080"
 )
 
 func RunServer() error {
@@ -26,13 +26,14 @@ func RunServer() error {
 			fmt.Println(":(")
 			continue
 		}
-		errCh := make(chan error)
+
+		errCh := make(chan error, 1)
 		go handleClient(conn, errCh)
-		select {
-		case err := <-errCh:
+
+		close(errCh)
+		if err := <- errCh; err != nil {
 			return err
 		}
-
 	}
 }
 
@@ -59,42 +60,26 @@ func handleClient(conn net.Conn, errCh chan error) {
 		}
 	}()
 
-	var cmd string
-
+	clientReader := bufio.NewReader(conn)
 	for {
-		buf := make([]byte, 32)
-		readLen, err := conn.Read(buf)
-		if err != nil {
-			if err != io.EOF {
-				fmt.Println("wowowowowo")
-				errCh <- err
-			} else {
-				fmt.Println("got EOF")
-			}
-			break
-		}
-		if readLen == 0 {
-			fmt.Println("wow")
-		}
-		fmt.Println("readLen: " + strconv.Itoa(readLen))
-		cmd += string(buf)
-	}
+		cmd, err := clientReader.ReadString('\n')
+		switch err {
+		case nil:
+			cmd := strings.TrimSpace(cmd)
+			fmt.Println(cmd)
 
-	//_, err := fmt.Fprintf(conn, "GET / HTTP/1.0\r\n\r\n")
-	//if err != nil {
-	//	errCh <- err
-	//}
-	//buf, err := ioutil.ReadAll(conn)
-	//if err != nil {
-	//	errCh <- err
-	//}
-	//fmt.Println("hey")
-	//cmd := string(buf)
-	//
-	//fmt.Println("got cmd:" + cmd)
-	err := processCmd(cmd, conn)
-	if err != nil {
-		errCh <- err
+			err = processCmd(cmd, conn)
+			if err != nil {
+				errCh <- err
+			}
+		case io.EOF:
+			fmt.Println("client closed the connection by terminating the process")
+			return
+		default:
+			fmt.Printf("error: %v\n", err)
+			errCh <- err
+			return
+		}
 	}
 }
 
