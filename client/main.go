@@ -1,59 +1,26 @@
-package client
+package main
 
 import (
-	"errors"
-	"fmt"
-	"io"
-	"log"
-	"net"
-	"os"
+	"context"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 
-	commands "VPN2.0/cmd"
+	"VPN2.0/client/internal/client"
+	"VPN2.0/client/internal/config"
+	"VPN2.0/client/internal/logs"
 )
 
-const (
-	serverAddr = "localhost:8080"
-)
-
-func copyTo(dst io.Writer, src io.Reader) {
-	if _, err := io.Copy(dst, src); err != nil {
-		log.Fatal(err)
-	}
-}
-
-func requestCreateNetwork() (err error) {
-	conn, _ := net.Dial("tcp", serverAddr)
-	go copyTo(os.Stdout, conn)
-
-	_, err = conn.Write([]byte(commands.CreateCmd + "\n"))
+func main() {
+	conf, err := config.New()
 	if err != nil {
-		return err
+		panic(err)
 	}
 
-	fmt.Println("sent")
+	logger := logs.BuildLogger(conf)
+	ctx := ctxzap.ToContext(context.Background(), logger)
+	logger.Info("server starting...")
 
-	return nil
-}
-
-func processCmd(cmd string) error {
-	switch cmd {
-	case commands.CreateCmd:
-		return requestCreateNetwork()
-	default:
-		return errors.New("undefined cmd")
-	}
-}
-
-func RunClient() error {
-	fmt.Println("Enter cmd:")
-	var cmd string
-	for {
-		_, err := fmt.Scanf("%s", &cmd)
-		if err != nil {
-			return err
-		}
-		if err := processCmd(cmd); err != nil {
-			return err
-		}
+	err = client.RunClient(ctx)
+	if err != nil {
+		panic(err)
 	}
 }

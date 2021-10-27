@@ -6,7 +6,7 @@ import (
 
 	"VPN2.0/server/internal/config"
 	"VPN2.0/server/internal/logs"
-	"VPN2.0/server/internal/src"
+	"VPN2.0/server/internal/server"
 )
 
 func main() {
@@ -19,9 +19,9 @@ func main() {
 	ctx := ctxzap.ToContext(context.Background(), logger)
 	logger.Info("server starting...")
 
-	src.CreateServer(ctx)
+	server.CreateServer(ctx)
 
-	err = src.RunServer(ctx, conf.ServerAddr)
+	err = server.RunServer(ctx, conf.ServerAddr)
 	if err != nil {
 		panic(err)
 	}
