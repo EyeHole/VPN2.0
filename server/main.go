@@ -1,87 +1,28 @@
-package server
+package main
 
 import (
-	commands "VPN2.0/cmd"
-	"bufio"
-	"fmt"
-	"io"
-	"net"
-	"strings"
+	"context"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
+
+	"VPN2.0/server/internal/config"
+	"VPN2.0/server/internal/logs"
+	"VPN2.0/server/internal/server"
 )
 
-const (
-	cmdLenLimit = 32
-	serverAddr  = "localhost:8080"
-)
-
-func RunServer() error {
-	listener, err := net.Listen("tcp", serverAddr)
+func main() {
+	conf, err := config.New()
 	if err != nil {
-		return err
-	}
-	for {
-		conn, err := listener.Accept()
-		fmt.Println("hello stranger")
-		if err != nil {
-			fmt.Println(":(")
-			continue
-		}
-
-		errCh := make(chan error, 1)
-		go handleClient(conn, errCh)
-
-		close(errCh)
-		if err := <- errCh; err != nil {
-			return err
-		}
-	}
-}
-
-func createNetwork(conn net.Conn) error {
-	fmt.Println("got something")
-	_, err := conn.Write([]byte("Got your request"))
-	return err
-}
-
-func processCmd(cmd string, conn net.Conn) error {
-	switch cmd {
-	case commands.CreateCmd:
-		return createNetwork(conn)
+		panic(err)
 	}
 
-	return nil
-}
+	logger := logs.BuildLogger(conf)
+	ctx := ctxzap.ToContext(context.Background(), logger)
+	logger.Info("server starting...")
 
-func handleClient(conn net.Conn, errCh chan error) {
-	defer func() {
-		err := conn.Close()
-		if err != nil {
-			errCh <- err
-		}
-	}()
+	server.CreateServer(ctx)
 
-	clientReader := bufio.NewReader(conn)
-	for {
-		cmd, err := clientReader.ReadString('\n')
-		switch err {
-		case nil:
-			cmd := strings.TrimSpace(cmd)
-			fmt.Println(cmd)
-
-			err = processCmd(cmd, conn)
-			if err != nil {
-				errCh <- err
-			}
-		case io.EOF:
-			fmt.Println("client closed the connection by terminating the process")
-			return
-		default:
-			fmt.Printf("error: %v\n", err)
-			errCh <- err
-			return
-		}
+	err = server.RunServer(ctx, conf.ServerAddr)
+	if err != nil {
+		panic(err)
 	}
-}
-
-func CreateServer() {
 }
