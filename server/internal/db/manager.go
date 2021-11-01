@@ -19,11 +19,14 @@ type Manager struct {
 const (
 	createNetworksTableQuery = `CREATE TABLE IF NOT EXISTS networks (
 									id INTEGER PRIMARY KEY, 
-									name CHAR(30) NOT NULL,
+									created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+									updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+									net_name VARCHAR(30) NOT NULL,
 									password VARCHAR NOT NULL,
-								)`
-	insertNetworkQuery = `INSERT INTO networks (name, password) VALUES (?, ?)`
-	getNetworkQuery    = `SELECT id, name, password FROM networks`
+    								mask INTEGER NOT NULL
+								);`
+	insertNetworkQuery = `INSERT INTO networks (net_name, password, mask) VALUES (?, ?, ?)`
+	getNetworkQuery    = `SELECT id, net_name, password, mask FROM networks WHERE net_name = $1 AND password = $2`
 )
 
 func NewDBManager(ctx context.Context) (*Manager, error) {
@@ -52,23 +55,31 @@ func (m *Manager) CreateNetworksTable(ctx context.Context) error {
 	return nil
 }
 
-func (m *Manager) AddNetwork(ctx context.Context, name string, passwordHash string) error {
+func (m *Manager) AddNetwork(ctx context.Context, name string, passwordHash string, mask int32) (int, error) {
 	logger := ctxmeta.GetLogger(ctx)
 
-	_, err := m.db.Exec(insertNetworkQuery, name, passwordHash)
+	result, err := m.db.Exec(insertNetworkQuery, name, passwordHash, mask)
 	if err != nil {
 		logger.Error("failed to exec network insertion query", zap.Error(err))
-		return err
+		return -1, err
 	}
 
-	return nil
+	id, err := result.LastInsertId()
+	if err != nil {
+		logger.Error("failed to get inserted row id", zap.Error(err))
+		return -1, err
+	}
+
+	logger.Debug("added network to db", zap.Int("id", int(id)))
+
+	return int(id), nil
 }
 
 func (m *Manager) GetNetwork(ctx context.Context, name string, passwordHash string) (*models.Network, error) {
 	logger := ctxmeta.GetLogger(ctx)
 
 	network := &models.Network{}
-	err := m.db.QueryRow(getNetworkQuery, name, passwordHash).Scan(network.ID, network.Name, network.Password)
+	err := m.db.QueryRow(getNetworkQuery, name, passwordHash).Scan(&network.ID, &network.NetName, &network.Password, &network.Mask)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			logger.Error("no network row with such args")

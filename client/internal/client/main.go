@@ -25,13 +25,13 @@ func copyTo(ctx context.Context, dst io.Writer, src io.Reader) {
 	}
 }
 
-func requestCreateNetwork(ctx context.Context) (err error) {
+func makeRequest(ctx context.Context, msg string) (err error) {
 	logger := ctxmeta.GetLogger(ctx)
 
 	conn, _ := net.Dial("tcp", serverAddr)
 	go copyTo(ctx, os.Stdout, conn)
 
-	_, err = conn.Write([]byte(commands.CreateCmd + "\n"))
+	_, err = conn.Write([]byte(msg + "\n"))
 	if err != nil {
 		logger.Error("failed to write to conn", zap.Error(err))
 		return err
@@ -42,12 +42,58 @@ func requestCreateNetwork(ctx context.Context) (err error) {
 	return nil
 }
 
+func processCreateRequest(ctx context.Context) error {
+	logger := ctxmeta.GetLogger(ctx)
+
+	var name, password string
+	fmt.Println("Enter net name:")
+	_, err := fmt.Scanf("%s", &name)
+	if err != nil {
+		logger.Error("got error while scanning create net name", zap.Error(err))
+		return err
+	}
+
+	fmt.Println("Enter net password:")
+	_, err = fmt.Scanf("%s", &password)
+	if err != nil {
+		logger.Error("got error while scanning create net password", zap.Error(err))
+		return err
+	}
+
+	msg := fmt.Sprintf("%s %s %s", commands.CreateCmd, name, password)
+	return makeRequest(ctx, msg)
+}
+
+func processConnectRequest(ctx context.Context) error {
+	logger := ctxmeta.GetLogger(ctx)
+
+	var name, password string
+	fmt.Println("Enter net name:")
+	_, err := fmt.Scanf("%s", &name)
+	if err != nil {
+		logger.Error("got error while scanning create net name", zap.Error(err))
+		return err
+	}
+
+	fmt.Println("Enter net password:")
+	_, err = fmt.Scanf("%s", &password)
+	if err != nil {
+		logger.Error("got error while scanning create net password", zap.Error(err))
+		return err
+	}
+
+	msg := fmt.Sprintf("%s %s %s", commands.ConnectCmd, name, password)
+	return makeRequest(ctx, msg)
+}
+
 func processCmd(ctx context.Context, cmd string) error {
 	logger := ctxmeta.GetLogger(ctx)
 
 	switch cmd {
 	case commands.CreateCmd:
-		return requestCreateNetwork(ctx)
+		return processCreateRequest(ctx)
+	case commands.ConnectCmd:
+		return processConnectRequest(ctx)
 	default:
 		logger.Error("undefined cmd")
 		return errors.New("undefined cmd")

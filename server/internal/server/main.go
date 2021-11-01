@@ -1,44 +1,21 @@
 package server
 
 import (
-	"VPN2.0/lib/ctxmeta"
 	"bufio"
 	"context"
-	"fmt"
-	"go.uber.org/zap"
+	"errors"
 	"io"
 	"net"
-	"os/exec"
+	"regexp"
 	"strings"
 
-	"github.com/google/uuid"
+	"go.uber.org/zap"
 
 	commands "VPN2.0/cmd"
+	"VPN2.0/lib/ctxmeta"
 )
 
-func createBridge(ctx context.Context, networkID string) error {
-	logger := ctxmeta.GetLogger(ctx)
-
-	bridgeName := fmt.Sprintf("b-%s", networkID)
-
-	_, err := exec.Command("ip", "link", "add", "name", bridgeName, "type", "bridge").Output()
-	if err != nil {
-		logger.Error("failed to exec bridge creation cmd", zap.Error(err))
-		return err
-	}
-	logger.Debug("bridge created!", zap.String("bridge_name", bridgeName))
-
-	_, err = exec.Command("ip", "link", "set", bridgeName, "up").Output()
-	if err != nil {
-		logger.Error("failed to exec bridge set up cmd", zap.Error(err))
-		return err
-	}
-	logger.Debug("bridge is up!", zap.String("bridge_name", bridgeName))
-
-	return nil
-}
-
-func RunServer(ctx context.Context, serverAddr string) error {
+func (s *Manager) RunServer(ctx context.Context, serverAddr string) error {
 	logger := ctxmeta.GetLogger(ctx)
 
 	listener, err := net.Listen("tcp", serverAddr)
@@ -57,7 +34,7 @@ func RunServer(ctx context.Context, serverAddr string) error {
 		logger.Debug("someone connected")
 
 		errCh := make(chan error, 1)
-		go handleClient(ctx, conn, errCh)
+		go s.handleClient(ctx, conn, errCh)
 
 		close(errCh)
 		if err := <-errCh; err != nil {
@@ -66,35 +43,65 @@ func RunServer(ctx context.Context, serverAddr string) error {
 	}
 }
 
-func createNetwork(ctx context.Context, conn net.Conn) error {
+func sendResult(ctx context.Context, result string, conn net.Conn) error {
 	logger := ctxmeta.GetLogger(ctx)
 
-	netID := uuid.New().String()[:5]
-	err := createBridge(ctx, netID)
-
-	resp := "network created"
-	if err != nil {
-		resp = "failed to process request"
-	}
-
-	_, err = conn.Write([]byte(resp))
+	_, err := conn.Write([]byte(result))
 	if err != nil {
 		logger.Error("failed to write to conn", zap.Error(err))
-	}
-
-	return err
-}
-
-func processCmd(ctx context.Context, cmd string, conn net.Conn) error {
-	switch cmd {
-	case commands.CreateCmd:
-		return createNetwork(ctx, conn)
+		return err
 	}
 
 	return nil
 }
 
-func handleClient(ctx context.Context, conn net.Conn, errCh chan error) {
+
+func (s *Manager) processCmd(ctx context.Context, cmd string, conn net.Conn) error {
+	logger := ctxmeta.GetLogger(ctx)
+
+	r := regexp.MustCompile("\\s+")
+	replace := r.ReplaceAllString(cmd, " ")
+	args := strings.Split(replace, " ")
+
+	if len(args) < 1 {
+		logger.Error("wrong cmd")
+		return errors.New("wrong cmd")
+	}
+
+	resp := "wrong cmd"
+	var cmdErr error
+	switch args[0] {
+	case commands.CreateCmd:
+		logger.Debug("start processing create cmd")
+		result, err := s.processNetworkCreationRequest(ctx, args, conn)
+		resp = result
+		cmdErr = err
+	case commands.ConnectCmd:
+		logger.Debug("start processing connect cmd")
+		result, err := s.processConnectRequest(ctx, args, conn)
+		resp = result
+		cmdErr = err
+	}
+
+	if resp == "" {
+		resp = "failed to process request"
+	}
+
+	err := sendResult(ctx, resp, conn)
+	if err != nil {
+		logger.Error("failed to send resp", zap.String("response", resp))
+		return err
+	}
+	logger.Debug("sent resp", zap.String("response", resp))
+
+	if cmdErr != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *Manager) handleClient(ctx context.Context, conn net.Conn, errCh chan error) {
 	logger := ctxmeta.GetLogger(ctx)
 
 	defer func() {
@@ -121,12 +128,9 @@ func handleClient(ctx context.Context, conn net.Conn, errCh chan error) {
 		cmd = strings.TrimSpace(cmd)
 		logger.Debug("got cmd", zap.String("cmd", cmd))
 
-		err = processCmd(ctx, cmd, conn)
+		err = s.processCmd(ctx, cmd, conn)
 		if err != nil {
 			errCh <- err
 		}
 	}
-}
-
-func CreateServer(ctx context.Context) {
 }

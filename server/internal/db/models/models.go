@@ -2,6 +2,7 @@ package models
 
 type Network struct {
 	ID       int    `db:"id"`
-	Name     string `db:"name"`
+	NetName  string `db:"net_name"`
 	Password string `db:"password"`
+	Mask     int    `db:"mask"`
 }

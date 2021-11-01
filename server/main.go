@@ -19,9 +19,12 @@ func main() {
 	ctx := ctxzap.ToContext(context.Background(), logger)
 	logger.Info("server starting...")
 
-	server.CreateServer(ctx)
+	serverManager, err := server.CreateServer(ctx)
+	if err != nil {
+		panic(err)
+	}
 
-	err = server.RunServer(ctx, conf.ServerAddr)
+	err = serverManager.RunServer(ctx, conf.ServerAddr)
 	if err != nil {
 		panic(err)
 	}
