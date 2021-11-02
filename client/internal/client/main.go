@@ -1,16 +1,17 @@
 package client
 
 import (
+	commands "VPN2.0/lib/cmd"
 	"VPN2.0/lib/ctxmeta"
+	"VPN2.0/lib/tap"
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
 	"go.uber.org/zap"
 	"io"
+	"math/rand"
 	"net"
-	"os"
-
-	commands "VPN2.0/cmd"
 )
 
 const (
@@ -20,16 +21,60 @@ const (
 func copyTo(ctx context.Context, dst io.Writer, src io.Reader) {
 	logger := ctxmeta.GetLogger(ctx)
 
-	if _, err := io.Copy(dst, src); err != nil {
+	_, err := io.Copy(dst, src);
+	if err != nil {
 		logger.Error("error in copyTo", zap.Error(err))
 	}
 }
 
-func makeRequest(ctx context.Context, msg string) (err error) {
+func processResp(ctx context.Context, conn net.Conn, cmdName string, errCh chan error){
+	logger := ctxmeta.GetLogger(ctx)
+
+	clientReader := bufio.NewReader(conn)
+	resp, err := clientReader.ReadString('\n')
+	if err != nil {
+		logger.Error("failed to read from conn", zap.Error(err))
+		errCh <- err
+	}
+
+	logger.Info("Got resp", zap.String("resp", resp))
+
+	switch cmdName {
+	case commands.ConnectCmd:
+		respStrings := commands.GetWords(resp)
+		if len(respStrings) < 2 {
+			logger.Error("empty resp from server")
+			errCh <- errors.New("empty resp")
+		}
+		if respStrings[0] != commands.SuccessResponse {
+			logger.Error("got error in server resp")
+			errCh <- errors.New("error in resp")
+		}
+
+		tapName := tap.GetTapName("client", 1, rand.Int())
+		_, err := tap.ConnectToTap(ctx, tapName)
+		if err != nil {
+			errCh <- err
+		}
+
+		err = tap.SetTapUp(ctx, respStrings[1], "client_tap1")
+		if err != nil {
+			errCh <- err
+		}
+	}
+}
+
+func makeRequest(ctx context.Context, msg string, cmdName string) (err error) {
 	logger := ctxmeta.GetLogger(ctx)
 
 	conn, _ := net.Dial("tcp", serverAddr)
-	go copyTo(ctx, os.Stdout, conn)
+
+	errCh := make(chan error, 1)
+	go processResp(ctx, conn, cmdName, errCh)
+	close(errCh)
+	if err := <-errCh; err != nil {
+		return err
+	}
 
 	_, err = conn.Write([]byte(msg + "\n"))
 	if err != nil {
@@ -61,7 +106,7 @@ func processCreateRequest(ctx context.Context) error {
 	}
 
 	msg := fmt.Sprintf("%s %s %s", commands.CreateCmd, name, password)
-	return makeRequest(ctx, msg)
+	return makeRequest(ctx, msg, commands.CreateCmd)
 }
 
 func processConnectRequest(ctx context.Context) error {
@@ -83,7 +128,7 @@ func processConnectRequest(ctx context.Context) error {
 	}
 
 	msg := fmt.Sprintf("%s %s %s", commands.ConnectCmd, name, password)
-	return makeRequest(ctx, msg)
+	return makeRequest(ctx, msg, commands.ConnectCmd)
 }
 
 func processCmd(ctx context.Context, cmd string) error {

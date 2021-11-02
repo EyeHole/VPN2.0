@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 
 	"VPN2.0/lib/ctxmeta"
 	"VPN2.0/server/internal/cache"
@@ -34,10 +35,14 @@ func CreateServer(ctx context.Context) (*Manager, error) {
 	if err := dbManager.CreateNetworksTable(ctx); err != nil {
 		return nil, err
 	}
-	logger.Debug("created networks table")
+	logger.Debug("set up networks table")
 
 	return &Manager{
 		db:    dbManager,
 		cache: cacheManager,
 	}, nil
+}
+
+func getBridgeName(netID int) string {
+	return fmt.Sprintf("b-%d", netID)
 }

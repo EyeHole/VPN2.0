@@ -6,12 +6,11 @@ import (
 	"errors"
 	"io"
 	"net"
-	"regexp"
 	"strings"
 
 	"go.uber.org/zap"
 
-	commands "VPN2.0/cmd"
+	commands "VPN2.0/lib/cmd"
 	"VPN2.0/lib/ctxmeta"
 )
 
@@ -46,7 +45,7 @@ func (s *Manager) RunServer(ctx context.Context, serverAddr string) error {
 func sendResult(ctx context.Context, result string, conn net.Conn) error {
 	logger := ctxmeta.GetLogger(ctx)
 
-	_, err := conn.Write([]byte(result))
+	_, err := conn.Write([]byte(result + "\n"))
 	if err != nil {
 		logger.Error("failed to write to conn", zap.Error(err))
 		return err
@@ -59,44 +58,31 @@ func sendResult(ctx context.Context, result string, conn net.Conn) error {
 func (s *Manager) processCmd(ctx context.Context, cmd string, conn net.Conn) error {
 	logger := ctxmeta.GetLogger(ctx)
 
-	r := regexp.MustCompile("\\s+")
-	replace := r.ReplaceAllString(cmd, " ")
-	args := strings.Split(replace, " ")
+	args := commands.GetWords(cmd)
 
 	if len(args) < 1 {
 		logger.Error("wrong cmd")
 		return errors.New("wrong cmd")
 	}
 
-	resp := "wrong cmd"
-	var cmdErr error
 	switch args[0] {
 	case commands.CreateCmd:
 		logger.Debug("start processing create cmd")
-		result, err := s.processNetworkCreationRequest(ctx, args, conn)
-		resp = result
-		cmdErr = err
+		return s.processNetworkCreationRequest(ctx, args, conn)
+
 	case commands.ConnectCmd:
 		logger.Debug("start processing connect cmd")
-		result, err := s.processConnectRequest(ctx, args, conn)
-		resp = result
-		cmdErr = err
+		return s.processConnectRequest(ctx, args, conn)
 	}
 
-	if resp == "" {
-		resp = "failed to process request"
-	}
-
+	resp := "wrong cmd"
 	err := sendResult(ctx, resp, conn)
 	if err != nil {
 		logger.Error("failed to send resp", zap.String("response", resp))
 		return err
 	}
-	logger.Debug("sent resp", zap.String("response", resp))
 
-	if cmdErr != nil {
-		return err
-	}
+	logger.Debug("sent resp", zap.String("response", resp))
 
 	return nil
 }

@@ -3,29 +3,47 @@ package server
 import (
 	"context"
 	"errors"
-	"fmt"
+	"go.uber.org/zap"
 	"net"
 	"os/exec"
-	"strconv"
-
-	"go.uber.org/zap"
 
 	"VPN2.0/lib/ctxmeta"
 )
 
-func (s *Manager) processNetworkCreationRequest(ctx context.Context, args []string, conn net.Conn) (string, error) {
-	resp := "network created"
+func (s *Manager) processNetworkCreationRequest(ctx context.Context, args []string, conn net.Conn) error {
+	logger := ctxmeta.GetLogger(ctx)
+	respErr := "failed to create network"
 
 	if len(args) < 3 {
-		return "", errors.New("wrong args amount")
+		logger.Error("wrong amount of args")
+
+		errSend := sendResult(ctx, respErr, conn)
+		if errSend != nil {
+			logger.Error("failed to send resp", zap.String("response", respErr))
+			return errSend
+		}
+		return errors.New("wrong args amount")
 	}
 
 	err := s.createNetwork(ctx, args[1], args[2])
 	if err != nil {
-		return "", err
+		errSend := sendResult(ctx, respErr, conn)
+		if errSend != nil {
+			logger.Error("failed to send resp", zap.String("response", respErr))
+			return errSend
+		}
+		return err
 	}
 
-	return resp, nil
+	respSuccess := "network created successfully"
+	errSend := sendResult(ctx, respSuccess, conn)
+	if errSend != nil {
+		logger.Error("failed to send resp", zap.String("response", respSuccess))
+		return errSend
+	}
+	logger.Debug("sent resp", zap.String("response", respSuccess))
+
+	return errSend
 }
 
 func (s *Manager) createNetwork(ctx context.Context, name string, passwordHash string) error {
@@ -34,13 +52,13 @@ func (s *Manager) createNetwork(ctx context.Context, name string, passwordHash s
 		return err
 	}
 
-	return createBridge(ctx, strconv.Itoa(netID))
+	return createBridge(ctx, netID)
 }
 
-func createBridge(ctx context.Context, networkID string) error {
+func createBridge(ctx context.Context, netID int) error {
 	logger := ctxmeta.GetLogger(ctx)
 
-	bridgeName := fmt.Sprintf("b-%s", networkID)
+	bridgeName := getBridgeName(netID)
 
 	_, err := exec.Command("ip", "link", "add", "name", bridgeName, "type", "bridge").Output()
 	if err != nil {
