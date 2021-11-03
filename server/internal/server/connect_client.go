@@ -1,20 +1,16 @@
 package server
 
 import (
-	"VPN2.0/lib/cmd"
 	"context"
 	"errors"
 	"fmt"
-
-	"log"
 	"math"
 	"net"
 	"os/exec"
 
-	"github.com/songgao/packets/ethernet"
-	"github.com/songgao/water"
 	"go.uber.org/zap"
 
+	"VPN2.0/lib/cmd"
 	"VPN2.0/lib/ctxmeta"
 	"VPN2.0/lib/tap"
 )
@@ -119,7 +115,8 @@ func (s *Manager) processConnectRequest(ctx context.Context, args []string, conn
 	logger.Debug("sent resp", zap.String("response", respSuccess))
 
 	errCh := make(chan error, 1)
-	go handleTapEvent(ctx, tapIf, errCh)
+	go tap.HandleTapEvent(ctx, tapIf, conn, errCh)
+	go tap.HandleConnEvent(ctx, tapIf, conn, errCh)
 
 	close(errCh)
 	if err = <-errCh; err != nil {
@@ -131,26 +128,6 @@ func (s *Manager) processConnectRequest(ctx context.Context, args []string, conn
 
 func getNetworkCapacity(mask int) int {
 	return int(math.Pow(2, float64(32-mask)) - 2)
-}
-
-func handleTapEvent(ctx context.Context, tapIf *water.Interface, errCh chan error) {
-	logger := ctxmeta.GetLogger(ctx)
-
-	var frame ethernet.Frame
-
-	for {
-		frame.Resize(1500)
-		n, err := tapIf.Read(frame)
-		if err != nil {
-			logger.Error("failed to read from tap", zap.Error(err))
-			errCh <- err
-		}
-		frame = frame[:n]
-		log.Printf("Dst: %s\n", frame.Destination())
-		log.Printf("Src: %s\n", frame.Source())
-		log.Printf("Ethertype: % x\n", frame.Ethertype())
-		log.Printf("Payload: %s\n", string(frame.Payload()))
-	}
 }
 
 func addTapToBridge(ctx context.Context, tapName string, bridgeName string) error {

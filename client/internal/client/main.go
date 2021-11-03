@@ -1,31 +1,24 @@
 package client
 
 import (
-	commands "VPN2.0/lib/cmd"
-	"VPN2.0/lib/ctxmeta"
-	"VPN2.0/lib/tap"
 	"bufio"
 	"context"
 	"errors"
 	"fmt"
-	"go.uber.org/zap"
-	"io"
 	"math/rand"
 	"net"
+	"time"
+
+	"go.uber.org/zap"
+
+	commands "VPN2.0/lib/cmd"
+	"VPN2.0/lib/ctxmeta"
+	"VPN2.0/lib/tap"
 )
 
 const (
 	serverAddr = "localhost:8080"
 )
-
-func copyTo(ctx context.Context, dst io.Writer, src io.Reader) {
-	logger := ctxmeta.GetLogger(ctx)
-
-	_, err := io.Copy(dst, src);
-	if err != nil {
-		logger.Error("error in copyTo", zap.Error(err))
-	}
-}
 
 func processResp(ctx context.Context, conn net.Conn, cmdName string, errCh chan error){
 	logger := ctxmeta.GetLogger(ctx)
@@ -51,16 +44,23 @@ func processResp(ctx context.Context, conn net.Conn, cmdName string, errCh chan 
 			errCh <- errors.New("error in resp")
 		}
 
-		tapName := tap.GetTapName("client", 1, rand.Int())
-		_, err := tap.ConnectToTap(ctx, tapName)
+		rand.Seed(time.Now().UnixNano())
+		tapName := tap.GetTapName("client", 1, 10 + rand.Intn(191))
+		tapIf, err := tap.ConnectToTap(ctx, tapName)
 		if err != nil {
 			errCh <- err
 		}
+		logger.Debug("connected to tap", zap.String("tap_name", tapName))
 
-		err = tap.SetTapUp(ctx, respStrings[1], "client_tap1")
+		err = tap.SetTapUp(ctx, respStrings[1], tapName)
 		if err != nil {
 			errCh <- err
 		}
+		logger.Debug("set tap up", zap.String("tap_name", tapName))
+
+
+		go tap.HandleTapEvent(ctx, tapIf, conn, errCh)
+		go tap.HandleConnEvent(ctx, tapIf, conn, errCh)
 	}
 }
 

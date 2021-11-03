@@ -1,10 +1,14 @@
 package tap
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"io"
+	"net"
 	"os/exec"
 
+	"github.com/songgao/packets/ethernet"
 	"github.com/songgao/water"
 	"go.uber.org/zap"
 
@@ -47,4 +51,59 @@ func SetTapUp(ctx context.Context, addr string, tapName string) error {
 
 func GetTapName(serviceName string, netID int, clientID int) string {
 	return fmt.Sprintf("%s_tap%d_%d", serviceName, netID, clientID)
+}
+
+func HandleTapEvent(ctx context.Context, tapIf *water.Interface, conn net.Conn, errCh chan error) {
+	logger := ctxmeta.GetLogger(ctx)
+
+	var frame ethernet.Frame
+
+	for {
+		frame.Resize(1500)
+		n, err := tapIf.Read(frame)
+		if err != nil {
+			logger.Error("failed to read from tap", zap.Error(err))
+			errCh <- err
+		}
+		frame = frame[:n]
+
+		msg := string(frame.Payload())
+		logger.Info("got in tap", zap.String("payload", msg))
+
+		_, err = conn.Write([]byte(msg + "\n"))
+		if err != nil {
+			logger.Error("failed to write to conn", zap.Error(err))
+			errCh <- err
+		}
+	}
+}
+
+func HandleConnEvent(ctx context.Context, tapIf *water.Interface, conn net.Conn, errCh chan error) {
+	logger := ctxmeta.GetLogger(ctx)
+
+	reader := bufio.NewReader(conn)
+	for {
+		buf, err := reader.ReadString('\n')
+		if err != nil {
+			if err == io.EOF {
+				logger.Warn("connection was closed")
+				return
+			}
+			logger.Error("got error while reading from conn", zap.Error(err))
+			errCh <- err
+			return
+		}
+
+		logger.Debug("got in conn", zap.String("buffer", buf))
+
+		var frame ethernet.Frame
+		frame.Resize(1500)
+		copy(frame.Payload(), buf)
+
+		_, err = tapIf.Write(frame)
+		if err != nil {
+			logger.Error("failed to write to tap", zap.Error(err))
+			errCh <- err
+		}
+	}
 }

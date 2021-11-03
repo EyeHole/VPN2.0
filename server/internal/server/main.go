@@ -90,33 +90,30 @@ func (s *Manager) processCmd(ctx context.Context, cmd string, conn net.Conn) err
 func (s *Manager) handleClient(ctx context.Context, conn net.Conn, errCh chan error) {
 	logger := ctxmeta.GetLogger(ctx)
 
-	defer func() {
-		err := conn.Close()
-		if err != nil {
-			logger.Error("failed to close conn", zap.Error(err))
-			errCh <- err
-		}
-	}()
+	//defer func() {
+	//	err := conn.Close()
+	//	if err != nil {
+	//		logger.Error("failed to close conn", zap.Error(err))
+	//		errCh <- err
+	//	}
+	//}()
 
 	clientReader := bufio.NewReader(conn)
-	for {
-		cmd, err := clientReader.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				logger.Warn("client closed the connection by terminating the process")
-				return
-			}
-			logger.Error("got error while reading from client", zap.Error(err))
-			errCh <- err
+	cmd, err := clientReader.ReadString('\n')
+	if err != nil {
+		if err == io.EOF {
+			logger.Warn("client closed the connection by terminating the process")
 			return
 		}
+		logger.Error("got error while reading from client", zap.Error(err))
+		errCh <- err
+		return
+	}
+	cmd = strings.TrimSpace(cmd)
+	logger.Debug("got cmd", zap.String("cmd", cmd))
 
-		cmd = strings.TrimSpace(cmd)
-		logger.Debug("got cmd", zap.String("cmd", cmd))
-
-		err = s.processCmd(ctx, cmd, conn)
-		if err != nil {
-			errCh <- err
-		}
+	err = s.processCmd(ctx, cmd, conn)
+	if err != nil {
+		errCh <- err
 	}
 }
