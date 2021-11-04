@@ -69,7 +69,7 @@ func makeRequest(ctx context.Context, msg string, cmdName string) (err error) {
 
 	conn, err := net.Dial("tcp", serverAddr)
 	if err != nil {
-		logger.Error("failed to connect to server")
+		logger.Error("failed to connect to server", zap.Error(err))
 		return err
 	}
 
