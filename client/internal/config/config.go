@@ -8,7 +8,8 @@ import (
 // Config struct describes a config entity
 type Config struct {
 	Debug      bool   `envconfig:"DEBUG" default:"true"`
-	ServerAddr string `envconfig:"SERVER_ADDR" default:"127.0.0.2:5000"`
+	ServerAddr string `envconfig:"SERVER_ADDR" default:""`
+	ServerPort string `envconfig:"SERVER_PORT" default:"6666"`
 }
 
 // New is a constructor for server's config

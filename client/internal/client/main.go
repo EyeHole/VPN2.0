@@ -60,10 +60,10 @@ func processResp(ctx context.Context, conn net.Conn, cmdName string, errCh chan 
 	}
 }
 
-func (c *Manager) makeRequest(ctx context.Context, msg string, cmdName string) (err error) {
+func (c *Manager) makeRequest(ctx context.Context, msg string, cmdName string, addr string) (err error) {
 	logger := ctxmeta.GetLogger(ctx)
 
-	conn, err := net.Dial("tcp", c.Config.ServerAddr)
+	conn, err := net.Dial("tcp", addr + ":" + c.Config.ServerPort)
 	if err != nil {
 		logger.Error("failed to connect to server", zap.Error(err))
 		return err
@@ -90,7 +90,7 @@ func (c *Manager) makeRequest(ctx context.Context, msg string, cmdName string) (
 func (c *Manager) processCreateRequest(ctx context.Context) error {
 	logger := ctxmeta.GetLogger(ctx)
 
-	var name, password string
+	var name, password, addr string
 	fmt.Println("Enter net name:")
 	_, err := fmt.Scanf("%s", &name)
 	if err != nil {
@@ -105,14 +105,21 @@ func (c *Manager) processCreateRequest(ctx context.Context) error {
 		return err
 	}
 
+	fmt.Println("Enter server addr:")
+	_, err = fmt.Scanf("%s", &addr)
+	if err != nil {
+		logger.Error("got error while scanning addr", zap.Error(err))
+		return err
+	}
+
 	msg := fmt.Sprintf("%s %s %s", commands.CreateCmd, name, password)
-	return c.makeRequest(ctx, msg, commands.CreateCmd)
+	return c.makeRequest(ctx, msg, commands.CreateCmd, addr)
 }
 
 func (c *Manager) processConnectRequest(ctx context.Context) error {
 	logger := ctxmeta.GetLogger(ctx)
 
-	var name, password string
+	var name, password, addr string
 	fmt.Println("Enter net name:")
 	_, err := fmt.Scanf("%s", &name)
 	if err != nil {
@@ -127,8 +134,15 @@ func (c *Manager) processConnectRequest(ctx context.Context) error {
 		return err
 	}
 
+	fmt.Println("Enter server addr:")
+	_, err = fmt.Scanf("%s", &addr)
+	if err != nil {
+		logger.Error("got error while scanning addr", zap.Error(err))
+		return err
+	}
+
 	msg := fmt.Sprintf("%s %s %s", commands.ConnectCmd, name, password)
-	return c.makeRequest(ctx, msg, commands.ConnectCmd)
+	return c.makeRequest(ctx, msg, commands.ConnectCmd, addr)
 }
 
 func (c *Manager) processCmd(ctx context.Context, cmd string) error {
