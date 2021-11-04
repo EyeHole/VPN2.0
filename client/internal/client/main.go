@@ -67,7 +67,11 @@ func processResp(ctx context.Context, conn net.Conn, cmdName string, errCh chan 
 func makeRequest(ctx context.Context, msg string, cmdName string) (err error) {
 	logger := ctxmeta.GetLogger(ctx)
 
-	conn, _ := net.Dial("tcp", serverAddr)
+	conn, err := net.Dial("tcp", serverAddr)
+	if err != nil {
+		logger.Error("failed to connect to server")
+		return err
+	}
 
 	errCh := make(chan error, 1)
 	go processResp(ctx, conn, cmdName, errCh)
