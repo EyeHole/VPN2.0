@@ -7,7 +7,7 @@ import (
 // Config struct describes a config entity
 type Config struct {
 	Debug           bool   `envconfig:"DEBUG" default:"true"`
-	ServerAddr      string `envconfig:"SERVER_ADDR" default:"localhost:8080"`
+	ServerAddr      string `envconfig:"SERVER_ADDR" default:"127.0.0.2:5000"`
 	RedisServerAddr string `envconfig:"REDIS_ADDR" default:"localhost:6379"`
 }
 
