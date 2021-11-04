@@ -19,7 +19,8 @@ func main() {
 	ctx := ctxzap.ToContext(context.Background(), logger)
 	logger.Info("server starting...")
 
-	err = client.RunClient(ctx)
+	c := client.Manager{Config: conf}
+	err = c.RunClient(ctx)
 	if err != nil {
 		panic(err)
 	}

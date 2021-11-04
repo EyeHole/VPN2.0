@@ -16,10 +16,6 @@ import (
 	"VPN2.0/lib/tap"
 )
 
-const (
-	serverAddr = "localhost:8080"
-)
-
 func processResp(ctx context.Context, conn net.Conn, cmdName string, errCh chan error){
 	logger := ctxmeta.GetLogger(ctx)
 
@@ -64,10 +60,10 @@ func processResp(ctx context.Context, conn net.Conn, cmdName string, errCh chan 
 	}
 }
 
-func makeRequest(ctx context.Context, msg string, cmdName string) (err error) {
+func (c *Manager) makeRequest(ctx context.Context, msg string, cmdName string) (err error) {
 	logger := ctxmeta.GetLogger(ctx)
 
-	conn, err := net.Dial("tcp", serverAddr)
+	conn, err := net.Dial("tcp", c.Config.ServerAddr)
 	if err != nil {
 		logger.Error("failed to connect to server", zap.Error(err))
 		return err
@@ -91,7 +87,7 @@ func makeRequest(ctx context.Context, msg string, cmdName string) (err error) {
 	return nil
 }
 
-func processCreateRequest(ctx context.Context) error {
+func (c *Manager) processCreateRequest(ctx context.Context) error {
 	logger := ctxmeta.GetLogger(ctx)
 
 	var name, password string
@@ -110,10 +106,10 @@ func processCreateRequest(ctx context.Context) error {
 	}
 
 	msg := fmt.Sprintf("%s %s %s", commands.CreateCmd, name, password)
-	return makeRequest(ctx, msg, commands.CreateCmd)
+	return c.makeRequest(ctx, msg, commands.CreateCmd)
 }
 
-func processConnectRequest(ctx context.Context) error {
+func (c *Manager) processConnectRequest(ctx context.Context) error {
 	logger := ctxmeta.GetLogger(ctx)
 
 	var name, password string
@@ -132,24 +128,24 @@ func processConnectRequest(ctx context.Context) error {
 	}
 
 	msg := fmt.Sprintf("%s %s %s", commands.ConnectCmd, name, password)
-	return makeRequest(ctx, msg, commands.ConnectCmd)
+	return c.makeRequest(ctx, msg, commands.ConnectCmd)
 }
 
-func processCmd(ctx context.Context, cmd string) error {
+func (c *Manager) processCmd(ctx context.Context, cmd string) error {
 	logger := ctxmeta.GetLogger(ctx)
 
 	switch cmd {
 	case commands.CreateCmd:
-		return processCreateRequest(ctx)
+		return c.processCreateRequest(ctx)
 	case commands.ConnectCmd:
-		return processConnectRequest(ctx)
+		return c.processConnectRequest(ctx)
 	default:
 		logger.Error("undefined cmd")
 		return errors.New("undefined cmd")
 	}
 }
 
-func RunClient(ctx context.Context) error {
+func (c *Manager) RunClient(ctx context.Context) error {
 	logger := ctxmeta.GetLogger(ctx)
 	fmt.Println("Enter cmd:")
 
@@ -161,7 +157,7 @@ func RunClient(ctx context.Context) error {
 			return err
 		}
 
-		if err := processCmd(ctx, cmd); err != nil {
+		if err := c.processCmd(ctx, cmd); err != nil {
 			return err
 		}
 	}

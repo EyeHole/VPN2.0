@@ -4,6 +4,7 @@ import (
 	"github.com/kelseyhightower/envconfig"
 )
 
+
 // Config struct describes a config entity
 type Config struct {
 	Debug      bool   `envconfig:"DEBUG" default:"true"`
