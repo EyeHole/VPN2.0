@@ -4,12 +4,11 @@ import (
 	"github.com/kelseyhightower/envconfig"
 )
 
-
 // Config struct describes a config entity
 type Config struct {
 	Debug      bool   `envconfig:"DEBUG" default:"true"`
 	ServerAddr string `envconfig:"SERVER_ADDR" default:""`
-	ServerPort string `envconfig:"SERVER_PORT" default:"6666"`
+	ServerPort string `envconfig:"SERVER_PORT" default:"8080"`
 }
 
 // New is a constructor for server's config
