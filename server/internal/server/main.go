@@ -17,6 +17,7 @@ import (
 func (s *Manager) RunServer(ctx context.Context, serverAddr string) error {
 	logger := ctxmeta.GetLogger(ctx)
 
+	logger.Info(serverAddr)
 	listener, err := net.Listen("tcp", serverAddr)
 	if err != nil {
 		logger.Error("got error while trying to listen", zap.Error(err))
@@ -53,7 +54,6 @@ func sendResult(ctx context.Context, result string, conn net.Conn) error {
 
 	return nil
 }
-
 
 func (s *Manager) processCmd(ctx context.Context, cmd string, conn net.Conn) error {
 	logger := ctxmeta.GetLogger(ctx)
