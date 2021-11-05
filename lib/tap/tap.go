@@ -68,7 +68,7 @@ func HandleTapEvent(ctx context.Context, tapIf *water.Interface, conn net.Conn, 
 		frame = frame[:n]
 
 		msg := string(frame.Payload())
-		logger.Info("got in tap", zap.String("payload", msg))
+		//logger.Info("got in tap", zap.String("payload", msg))
 
 		_, err = conn.Write([]byte(msg + "\n"))
 		if err != nil {
@@ -94,7 +94,7 @@ func HandleConnEvent(ctx context.Context, tapIf *water.Interface, conn net.Conn,
 			return
 		}
 
-		logger.Debug("got in conn", zap.String("buffer", buf))
+		//logger.Debug("got in conn", zap.String("buffer", buf))
 
 		var frame ethernet.Frame
 		frame.Resize(1500)
