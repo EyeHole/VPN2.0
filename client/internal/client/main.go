@@ -48,7 +48,12 @@ func processResp(ctx context.Context, conn net.Conn, cmdName string, errCh chan 
 		}
 		logger.Debug("connected to tun", zap.String("tun_name", tunName))
 
-		err = tun.SetTunUp(ctx, respStrings[1], tunName)
+		brd := tap.GetBrdFromIp(ctx, respStrings[1])
+		if brd == "" {
+			errCh <- errors.New("failed to get brd")
+		}
+
+		err = tap.SetTapUp(ctx, respStrings[1], brd, tapName)
 		if err != nil {
 			errCh <- err
 		}

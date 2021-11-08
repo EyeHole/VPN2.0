@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"os/exec"
+	"strings"
 
 	"github.com/songgao/packets/ethernet"
 	"github.com/songgao/water"
@@ -36,10 +37,10 @@ func ConnectToTap(ctx context.Context, tapName string) (*water.Interface, error)
 	return ifce, nil
 }
 
-func SetTapUp(ctx context.Context, addr string, tapName string) error {
+func SetTapUp(ctx context.Context, addr string, brd string, tapName string) error {
 	logger := ctxmeta.GetLogger(ctx)
 
-	_, err := exec.Command("ip", "a", "add", addr, "dev", tapName).Output()
+	_, err := exec.Command("ip", "a", "add", addr, "dev", tapName, "broadcast", brd).Output()
 	if err != nil {
 		logger.Error("failed to add tap interface", zap.Error(err))
 		return err
@@ -130,4 +131,17 @@ func HandleConnEvent(ctx context.Context, tapIf *water.Interface, conn net.Conn,
 			errCh <- err
 		}
 	}
+}
+
+// FIXME: now works only for 24 mask
+func GetBrdFromIp(ctx context.Context, ipAddr string) string {
+	logger := ctxmeta.GetLogger(ctx)
+
+	octs := strings.Split(ipAddr, ".")
+	if len(octs) < 4 {
+		logger.Error("failed to split ip")
+		return ""
+	}
+
+	return fmt.Sprintf("%s.%s.%s.255", octs[0], octs[1], octs[2])
 }

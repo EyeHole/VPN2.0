@@ -83,7 +83,12 @@ func (s *Manager) processConnectRequest(ctx context.Context, args []string, conn
 		return err
 	}
 
-	err = tap.SetTapUp(ctx, tapAddr, serverTapName)
+	brd := tap.GetBrdFromIp(ctx, tapAddr)
+	if brd == "" {
+		return errors.New("failed to get brd")
+	}
+
+	err = tap.SetTapUp(ctx, tapAddr, brd, serverTapName)
 	if err != nil {
 		errSend := sendResult(ctx, respErr, conn)
 		if errSend != nil {
