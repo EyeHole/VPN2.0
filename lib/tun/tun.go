@@ -79,6 +79,8 @@ func HandleConnTunEvent(ctx context.Context, tunIf *water.Interface, conn net.Co
 	logger := ctxmeta.GetLogger(ctx)
 
 	reader := bufio.NewReader(conn)
+	writer := bufio.NewWriter(tunIf)
+
 	for {
 		buf, err := reader.ReadString('\n')
 		if err != nil {
@@ -93,7 +95,11 @@ func HandleConnTunEvent(ctx context.Context, tunIf *water.Interface, conn net.Co
 
 		//logger.Debug("got in conn", zap.String("buffer", buf))
 
-		_, err = tunIf.Write([]byte(buf))
+		packet := make([]byte, 1500)
+		copy(packet, []byte(buf))
+		packet = packet[:len(buf)]
+
+		_, err = writer.Write(packet)
 		if err != nil {
 			logger.Error("failed to write to tun", zap.Error(err))
 			errCh <- err
