@@ -13,10 +13,10 @@ import (
 
 	commands "VPN2.0/lib/cmd"
 	"VPN2.0/lib/ctxmeta"
-	"VPN2.0/lib/tap"
+	"VPN2.0/lib/tun"
 )
 
-func processResp(ctx context.Context, conn net.Conn, cmdName string, errCh chan error){
+func processResp(ctx context.Context, conn net.Conn, cmdName string, errCh chan error) {
 	logger := ctxmeta.GetLogger(ctx)
 
 	clientReader := bufio.NewReader(conn)
@@ -41,29 +41,28 @@ func processResp(ctx context.Context, conn net.Conn, cmdName string, errCh chan 
 		}
 
 		rand.Seed(time.Now().UnixNano())
-		tapName := tap.GetTapName("client", 1, 10 + rand.Intn(191))
-		tapIf, err := tap.ConnectToTap(ctx, tapName)
+		tunName := tun.GetTunName("client", 1, 10+rand.Intn(191))
+		tunIf, err := tun.ConnectToTun(ctx, tunName)
 		if err != nil {
 			errCh <- err
 		}
-		logger.Debug("connected to tap", zap.String("tap_name", tapName))
+		logger.Debug("connected to tun", zap.String("tun_name", tunName))
 
-		err = tap.SetTapUp(ctx, respStrings[1], tapName)
+		err = tun.SetTunUp(ctx, respStrings[1], tunName)
 		if err != nil {
 			errCh <- err
 		}
-		logger.Debug("set tap up", zap.String("tap_name", tapName))
+		logger.Debug("set tun up", zap.String("tun_name", tunName))
 
-
-		go tap.HandleTapEvent(ctx, tapIf, conn, errCh)
-		go tap.HandleConnEvent(ctx, tapIf, conn, errCh)
+		go tun.HandleTunEvent(ctx, tunIf, conn, errCh)
+		go tun.HandleConnTunEvent(ctx, tunIf, conn, errCh)
 	}
 }
 
 func (c *Manager) makeRequest(ctx context.Context, msg string, cmdName string, addr string) (err error) {
 	logger := ctxmeta.GetLogger(ctx)
 
-	conn, err := net.Dial("tcp", addr + ":" + c.Config.ServerPort)
+	conn, err := net.Dial("tcp", addr+":"+c.Config.ServerPort)
 	if err != nil {
 		logger.Error("failed to connect to server", zap.Error(err))
 		return err

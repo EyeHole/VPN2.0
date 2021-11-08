@@ -1,0 +1,102 @@
+package tun
+
+import (
+	"bufio"
+	"context"
+	"fmt"
+	"io"
+	"net"
+	"os/exec"
+
+	"VPN2.0/lib/ctxmeta"
+	"github.com/songgao/water"
+	"go.uber.org/zap"
+)
+
+func ConnectToTun(ctx context.Context, tapName string) (*water.Interface, error) {
+	logger := ctxmeta.GetLogger(ctx)
+
+	config := water.Config{
+		DeviceType: water.TUN,
+	}
+	config.Name = tapName
+
+	ifce, err := water.New(config)
+	if err != nil {
+		logger.Error("failed to connect to tap interface", zap.Error(err))
+		return nil, err
+	}
+	return ifce, nil
+}
+
+func SetTunUp(ctx context.Context, addr string, tunName string) error {
+	logger := ctxmeta.GetLogger(ctx)
+
+	_, err := exec.Command("ip", "a", "add", addr, "dev", tunName).Output()
+	if err != nil {
+		logger.Error("failed to add tun interface", zap.Error(err))
+		return err
+	}
+
+	_, err = exec.Command("ip", "link", "set", "dev", tunName, "up").Output()
+	if err != nil {
+		logger.Error("failed to set tun interface up", zap.Error(err))
+		return err
+	}
+
+	return nil
+}
+
+func GetTunName(serviceName string, netID int, clientID int) string {
+	return fmt.Sprintf("%s_tun%d_%d", serviceName, netID, clientID)
+}
+
+func HandleTunEvent(ctx context.Context, tunIf *water.Interface, conn net.Conn, errCh chan error) {
+	logger := ctxmeta.GetLogger(ctx)
+
+	packet := make([]byte, 1500)
+
+	for {
+		n, err := tunIf.Read(packet)
+		if err != nil {
+			logger.Error("failed to read from tun", zap.Error(err))
+			errCh <- err
+		}
+		packet = packet[:n]
+
+		//logger.Info("got in tap", zap.String("payload", msg))
+
+		packet = append(packet, []byte("\n")[0])
+		_, err = conn.Write(packet)
+		if err != nil {
+			logger.Error("failed to write to conn", zap.Error(err))
+			errCh <- err
+		}
+	}
+}
+
+func HandleConnTunEvent(ctx context.Context, tunIf *water.Interface, conn net.Conn, errCh chan error) {
+	logger := ctxmeta.GetLogger(ctx)
+
+	reader := bufio.NewReader(conn)
+	for {
+		buf, err := reader.ReadString('\n')
+		if err != nil {
+			if err == io.EOF {
+				logger.Warn("connection was closed")
+				return
+			}
+			logger.Error("got error while reading from conn", zap.Error(err))
+			errCh <- err
+			return
+		}
+
+		//logger.Debug("got in conn", zap.String("buffer", buf))
+
+		_, err = tunIf.Write([]byte(buf))
+		if err != nil {
+			logger.Error("failed to write to tun", zap.Error(err))
+			errCh <- err
+		}
+	}
+}
