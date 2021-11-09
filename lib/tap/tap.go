@@ -1,7 +1,6 @@
 package tap
 
 import (
-	"VPN2.0/lib/localnet"
 	"bufio"
 	"context"
 	"fmt"
@@ -121,19 +120,28 @@ func HandleConnEvent(ctx context.Context, tapIf *water.Interface, conn net.Conn,
 		var frame ethernet.Frame
 		frame.Resize(len(validBuf))
 
-		destAddr := ""
-		packet := gopacket.NewPacket(validBuf, layers.LayerTypeEthernet, gopacket.Default)
+		//packet := gopacket.NewPacket(validBuf, layers.LayerTypeTCP, gopacket.Default)
+		//if tcpLayer := packet.Layer(layers.LayerTypeTCP); tcpLayer != nil {
+		//	fmt.Println("This is a TCP packet!")
+		//	// Get actual TCP data from this layer
+		//	tcp, _ := tcpLayer.(*layers.TCP)
+		//	fmt.Printf("From src port %d to dst port %d\n", tcp.SrcPort, tcp.DstPort)
+		//}
+		//// Iterate over all layers, printing out each layer type
+		//for _, layer := range packet.Layers() {
+		//	fmt.Println("PACKET LAYER:", layer.LayerType())
+		//}
+
+		packet := gopacket.NewPacket(validBuf, layers.LayerTypeIPv4, gopacket.Default)
 		if ipv4Layer := packet.Layer(layers.LayerTypeIPv4); ipv4Layer != nil {
 			ipv4, _ := ipv4Layer.(*layers.IPv4)
-			destAddr = string(ipv4.SrcIP)
+			fmt.Println("dest: ", ipv4)
+			copy(frame.Destination(), ipv4.DstIP)
+			// TODO: convert ipv4.DstIP to string and get ether
+			//netID, tapID := localnet.GetNetIdAndTapId(ctx, addr)
+			//tapName := fmt.Sprintf("server%s-%s", netID, tapID)
+			//getTapEther(tapName)
 		}
-		logger.Debug("dest_addr", zap.String("addr", destAddr))
-
-		netID, tapID := localnet.GetNetIdAndTapId(ctx, destAddr)
-		tapName := fmt.Sprintf("server%s-%s", netID, tapID)
-
-		ether, _ := getTapEther(tapName)
-		copy(frame.Destination(), ether)
 
 		copy(frame.Payload(), validBuf)
 		fmt.Println("PAYLOAD ", frame.Payload())

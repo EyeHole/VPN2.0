@@ -26,7 +26,7 @@ func GetNetIdAndTapId(ctx context.Context, ipAddr string) (string, string) {
 
 	octs := strings.Split(ipAddr, ".")
 	if len(octs) < 4 {
-		logger.Error("failed to split ip")
+		logger.Error("failed to split ip: " + ipAddr)
 		return "", ""
 	}
 
