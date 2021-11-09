@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"io"
 	"net"
 	"os/exec"
 
@@ -82,7 +81,7 @@ func HandleConnTunEvent(ctx context.Context, tunIf *water.Interface, conn net.Co
 	writer := bufio.NewWriter(tunIf)
 
 	for {
-		buf, err := reader.ReadString('\n')
+		/*buf, err := reader.ReadString('\n')
 		if err != nil {
 			if err == io.EOF {
 				logger.Warn("connection was closed")
@@ -91,13 +90,17 @@ func HandleConnTunEvent(ctx context.Context, tunIf *water.Interface, conn net.Co
 			logger.Error("got error while reading from conn", zap.Error(err))
 			errCh <- err
 			return
-		}
+		}*/
 
 		//logger.Debug("got in conn", zap.String("buffer", buf))
+		var packet = make([]byte, 1500)
+		n, err := reader.Read(packet)
 
-		packet := make([]byte, 1500)
-		copy(packet, []byte(buf))
-		packet = packet[:len(buf)]
+		if err != nil {
+			fmt.Println("read failed:", n, err)
+		}
+
+		packet = packet[:n]
 
 		_, err = writer.Write(packet)
 		if err != nil {

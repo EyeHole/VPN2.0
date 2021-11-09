@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"io"
 	"net"
 	"os/exec"
 
@@ -67,6 +66,10 @@ func HandleTapEvent(ctx context.Context, tapIf *water.Interface, conn net.Conn, 
 		}
 		frame = frame[:n]
 
+		fmt.Println("TAP SOURCE ", frame.Source())
+		fmt.Println("TAP DESTINATION ", frame.Destination())
+		fmt.Println("TAP ", frame.Payload())
+
 		msg := string(frame.Payload())
 		//logger.Info("got in tap", zap.String("payload", msg))
 
@@ -83,7 +86,7 @@ func HandleConnEvent(ctx context.Context, tapIf *water.Interface, conn net.Conn,
 
 	reader := bufio.NewReader(conn)
 	for {
-		buf, err := reader.ReadString('\n')
+		/*buf, err := reader.ReadString('\n')
 		if err != nil {
 			if err == io.EOF {
 				logger.Warn("connection was closed")
@@ -93,12 +96,23 @@ func HandleConnEvent(ctx context.Context, tapIf *water.Interface, conn net.Conn,
 			errCh <- err
 			return
 		}
-
+		*/
 		//logger.Debug("got in conn", zap.String("buffer", buf))
 
+		var bufPool = make([]byte, 1500)
+		n, err := reader.Read(bufPool)
+
+		if err != nil {
+			fmt.Println("read failed:", n, err)
+		}
+
+		validBuf := bufPool[:n]
+		fmt.Println("CONNECTION ", validBuf)
+
 		var frame ethernet.Frame
-		frame.Resize(1500)
-		copy(frame.Payload(), buf)
+		frame.Resize(len(validBuf))
+		copy(frame.Payload(), validBuf)
+		fmt.Println("PAYLOAD ", frame.Payload())
 
 		_, err = tapIf.Write(frame)
 		if err != nil {
