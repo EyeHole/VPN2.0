@@ -1,6 +1,7 @@
 package client
 
 import (
+	"VPN2.0/lib/localnet"
 	"bufio"
 	"context"
 	"errors"
@@ -48,12 +49,12 @@ func processResp(ctx context.Context, conn net.Conn, cmdName string, errCh chan 
 		}
 		logger.Debug("connected to tun", zap.String("tun_name", tunName))
 
-		brd := tap.GetBrdFromIp(ctx, respStrings[1])
+		brd := localnet.GetBrdFromIp(ctx, respStrings[1])
 		if brd == "" {
 			errCh <- errors.New("failed to get brd")
 		}
 
-		err = tap.SetTapUp(ctx, respStrings[1], brd, tapName)
+		err = tun.SetTunUp(ctx, respStrings[1], brd, tunName)
 		if err != nil {
 			errCh <- err
 		}
@@ -95,17 +96,17 @@ func (c *Manager) processCreateRequest(ctx context.Context) error {
 	logger := ctxmeta.GetLogger(ctx)
 
 	var name, password, addr string
-	fmt.Println("Enter net name:")
+	fmt.Println("Enter localnet name:")
 	_, err := fmt.Scanf("%s", &name)
 	if err != nil {
-		logger.Error("got error while scanning create net name", zap.Error(err))
+		logger.Error("got error while scanning create localnet name", zap.Error(err))
 		return err
 	}
 
-	fmt.Println("Enter net password:")
+	fmt.Println("Enter localnet password:")
 	_, err = fmt.Scanf("%s", &password)
 	if err != nil {
-		logger.Error("got error while scanning create net password", zap.Error(err))
+		logger.Error("got error while scanning create localnet password", zap.Error(err))
 		return err
 	}
 
@@ -124,17 +125,17 @@ func (c *Manager) processConnectRequest(ctx context.Context) error {
 	logger := ctxmeta.GetLogger(ctx)
 
 	var name, password, addr string
-	fmt.Println("Enter net name:")
+	fmt.Println("Enter localnet name:")
 	_, err := fmt.Scanf("%s", &name)
 	if err != nil {
-		logger.Error("got error while scanning create net name", zap.Error(err))
+		logger.Error("got error while scanning create localnet name", zap.Error(err))
 		return err
 	}
 
-	fmt.Println("Enter net password:")
+	fmt.Println("Enter localnet password:")
 	_, err = fmt.Scanf("%s", &password)
 	if err != nil {
-		logger.Error("got error while scanning create net password", zap.Error(err))
+		logger.Error("got error while scanning create localnet password", zap.Error(err))
 		return err
 	}
 

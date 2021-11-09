@@ -28,10 +28,10 @@ func ConnectToTun(ctx context.Context, tapName string) (*water.Interface, error)
 	return ifce, nil
 }
 
-func SetTunUp(ctx context.Context, addr string, tunName string) error {
+func SetTunUp(ctx context.Context, addr string, brd string, tunName string) error {
 	logger := ctxmeta.GetLogger(ctx)
 
-	_, err := exec.Command("ip", "a", "add", addr, "dev", tunName).Output()
+	_, err := exec.Command("ip", "a", "add", addr, "dev", tunName, "broadcast", brd).Output()
 	if err != nil {
 		logger.Error("failed to add tun interface", zap.Error(err))
 		return err

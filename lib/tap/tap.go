@@ -4,13 +4,11 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"net"
-	"os/exec"
-	"strings"
-
 	"github.com/songgao/packets/ethernet"
 	"github.com/songgao/water"
 	"go.uber.org/zap"
+	"net"
+	"os/exec"
 
 	"VPN2.0/lib/ctxmeta"
 )
@@ -131,17 +129,4 @@ func HandleConnEvent(ctx context.Context, tapIf *water.Interface, conn net.Conn,
 			errCh <- err
 		}
 	}
-}
-
-// FIXME: now works only for 24 mask
-func GetBrdFromIp(ctx context.Context, ipAddr string) string {
-	logger := ctxmeta.GetLogger(ctx)
-
-	octs := strings.Split(ipAddr, ".")
-	if len(octs) < 4 {
-		logger.Error("failed to split ip")
-		return ""
-	}
-
-	return fmt.Sprintf("%s.%s.%s.255", octs[0], octs[1], octs[2])
 }

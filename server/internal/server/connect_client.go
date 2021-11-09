@@ -1,6 +1,7 @@
 package server
 
 import (
+	"VPN2.0/lib/localnet"
 	"context"
 	"errors"
 	"fmt"
@@ -83,7 +84,7 @@ func (s *Manager) processConnectRequest(ctx context.Context, args []string, conn
 		return err
 	}
 
-	brd := tap.GetBrdFromIp(ctx, tapAddr)
+	brd := localnet.GetBrdFromIp(ctx, tapAddr)
 	if brd == "" {
 		return errors.New("failed to get brd")
 	}
