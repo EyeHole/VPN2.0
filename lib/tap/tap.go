@@ -1,9 +1,12 @@
 package tap
 
 import (
+	"VPN2.0/lib/localnet"
 	"bufio"
 	"context"
 	"fmt"
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 	"github.com/songgao/packets/ethernet"
 	"github.com/songgao/water"
 	"go.uber.org/zap"
@@ -13,8 +16,8 @@ import (
 	"VPN2.0/lib/ctxmeta"
 )
 
-func getBridgeEther() (net.HardwareAddr, error) {
-	addr, _ := exec.Command("ip -o link | grep b- | grep ether | awk '{ print $17 }'").Output()
+func getTapEther(tapName string) (net.HardwareAddr, error) {
+	addr, _ := exec.Command("ip", "-o", "link", "|", "grep", tapName, "|", "grep", "ether", "|", "awk", "'{ print $17 }'").Output()
 	return net.ParseMAC(string(addr))
 
 }
@@ -118,8 +121,20 @@ func HandleConnEvent(ctx context.Context, tapIf *water.Interface, conn net.Conn,
 		var frame ethernet.Frame
 		frame.Resize(len(validBuf))
 
-		ether, _ := getBridgeEther()
+		destAddr := ""
+		packet := gopacket.NewPacket(validBuf, layers.LayerTypeEthernet, gopacket.Default)
+		if ipv4Layer := packet.Layer(layers.LayerTypeIPv4); ipv4Layer != nil {
+			ipv4, _ := ipv4Layer.(*layers.IPv4)
+			destAddr = string(ipv4.SrcIP)
+		}
+		logger.Debug("dest_addr", zap.String("addr", destAddr))
+
+		netID, tapID := localnet.GetNetIdAndTapId(ctx, destAddr)
+		tapName := fmt.Sprintf("server%s-%s", netID, tapID)
+
+		ether, _ := getTapEther(tapName)
 		copy(frame.Destination(), ether)
+
 		copy(frame.Payload(), validBuf)
 		fmt.Println("PAYLOAD ", frame.Payload())
 

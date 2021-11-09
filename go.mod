@@ -4,6 +4,7 @@ go 1.16
 
 require (
 	github.com/gomodule/redigo v1.8.5
+	github.com/google/gopacket v1.1.19
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/mattn/go-sqlite3 v1.14.9
