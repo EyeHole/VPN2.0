@@ -14,6 +14,12 @@ import (
 	"VPN2.0/lib/ctxmeta"
 )
 
+func getBridgeEther() (net.HardwareAddr, error) {
+	addr, _ := exec.Command("ip -o link | grep b- | grep ether | awk '{ print $17 }'").Output()
+	return net.ParseMAC(string(addr))
+
+}
+
 func ConnectToTap(ctx context.Context, tapName string) (*water.Interface, error) {
 	logger := ctxmeta.GetLogger(ctx)
 
@@ -66,9 +72,10 @@ func HandleTapEvent(ctx context.Context, tapIf *water.Interface, conn net.Conn, 
 		}
 		frame = frame[:n]
 
-		fmt.Println("TAP SOURCE ", frame.Source())
+		/*fmt.Println("TAP SOURCE ", frame.Source())
 		fmt.Println("TAP DESTINATION ", frame.Destination())
-		fmt.Println("TAP ", frame.Payload())
+		fmt.Println("TAP ", frame.Payload())*/
+		fmt.Println("TAP ", tapIf.Name(), "\n GOT ", frame)
 
 		msg := string(frame.Payload())
 		//logger.Info("got in tap", zap.String("payload", msg))
@@ -111,6 +118,9 @@ func HandleConnEvent(ctx context.Context, tapIf *water.Interface, conn net.Conn,
 
 		var frame ethernet.Frame
 		frame.Resize(len(validBuf))
+
+		ether, _ := getBridgeEther()
+		copy(frame.Destination(), ether)
 		copy(frame.Payload(), validBuf)
 		fmt.Println("PAYLOAD ", frame.Payload())
 
