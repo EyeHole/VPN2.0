@@ -65,7 +65,7 @@ func HandleTunEvent(ctx context.Context, tunIf *water.Interface, conn net.Conn, 
 
 		//logger.Info("got in tap", zap.String("payload", msg))
 
-		packet = append(packet, []byte("\n")[0])
+		//packet = append(packet, []byte("\n")[0])
 		_, err = conn.Write(packet)
 		if err != nil {
 			logger.Error("failed to write to conn", zap.Error(err))

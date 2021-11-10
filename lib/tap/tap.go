@@ -2,23 +2,47 @@ package tap
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
+	"net"
+	"os/exec"
+
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/songgao/packets/ethernet"
 	"github.com/songgao/water"
 	"go.uber.org/zap"
-	"net"
-	"os/exec"
 
+	lib "VPN2.0/lib/cmd"
 	"VPN2.0/lib/ctxmeta"
+	"VPN2.0/lib/localnet"
+	cmdchain "github.com/rainu/go-command-chain"
 )
 
-func getTapEther(tapName string) (net.HardwareAddr, error) {
-	addr, _ := exec.Command("ip", "-o", "link", "|", "grep", tapName, "|", "grep", "ether", "|", "awk", "'{ print $17 }'").Output()
-	return net.ParseMAC(string(addr))
+func getTapEther(tapName string) net.HardwareAddr {
+	fmt.Println("tap name", tapName)
 
+	addr := &bytes.Buffer{}
+	err := cmdchain.Builder().
+		Join("ip", "addr", "show", tapName).
+		Join("grep", "ether").
+		Finalize().WithOutput(addr).Run()
+	if err != nil {
+		fmt.Println("error", err)
+	}
+
+	addrWords := lib.GetWords(addr.String())
+
+	if len(addrWords) < 3 {
+		mac, _ := net.ParseMAC("")
+		return mac
+	}
+
+	fmt.Println("ether: ", addrWords[2])
+
+	mac, _ := net.ParseMAC(addrWords[2])
+	return mac
 }
 
 func ConnectToTap(ctx context.Context, tapName string) (*water.Interface, error) {
@@ -59,6 +83,21 @@ func GetTapName(serviceName string, netID int, clientID int) string {
 	return fmt.Sprintf("%s_tap%d_%d", serviceName, netID, clientID)
 }
 
+func PrepareFrame(src string, dst string, size int, ctx context.Context) ethernet.Frame {
+	var frame ethernet.Frame
+
+	dstNetID, dstTapID := localnet.GetNetIdAndTapId(ctx, dst)
+	dstTapName := fmt.Sprintf("server_tap%s_%s", dstNetID, dstTapID)
+	dstEther := getTapEther(dstTapName)
+
+	srcNetID, srcTapID := localnet.GetNetIdAndTapId(ctx, src)
+	srcTapName := fmt.Sprintf("server_tap%s_%s", srcNetID, srcTapID)
+	srcEther := getTapEther(srcTapName)
+
+	frame.Prepare(dstEther, srcEther, ethernet.NotTagged, ethernet.IPv4, size)
+	return frame
+}
+
 func HandleTapEvent(ctx context.Context, tapIf *water.Interface, conn net.Conn, errCh chan error) {
 	logger := ctxmeta.GetLogger(ctx)
 
@@ -78,10 +117,10 @@ func HandleTapEvent(ctx context.Context, tapIf *water.Interface, conn net.Conn, 
 		fmt.Println("TAP ", frame.Payload())*/
 		fmt.Println("TAP ", tapIf.Name(), "\n GOT ", frame)
 
-		msg := string(frame.Payload())
+		//msg := string(frame.Payload())
 		//logger.Info("got in tap", zap.String("payload", msg))
 
-		_, err = conn.Write([]byte(msg + "\n"))
+		_, err = conn.Write(frame.Payload())
 		if err != nil {
 			logger.Error("failed to write to conn", zap.Error(err))
 			errCh <- err
@@ -94,19 +133,6 @@ func HandleConnEvent(ctx context.Context, tapIf *water.Interface, conn net.Conn,
 
 	reader := bufio.NewReader(conn)
 	for {
-		/*buf, err := reader.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				logger.Warn("connection was closed")
-				return
-			}
-			logger.Error("got error while reading from conn", zap.Error(err))
-			errCh <- err
-			return
-		}
-		*/
-		//logger.Debug("got in conn", zap.String("buffer", buf))
-
 		var bufPool = make([]byte, 1500)
 		n, err := reader.Read(bufPool)
 
@@ -117,36 +143,28 @@ func HandleConnEvent(ctx context.Context, tapIf *water.Interface, conn net.Conn,
 		validBuf := bufPool[:n]
 		fmt.Println("CONNECTION ", validBuf)
 
-		var frame ethernet.Frame
-		frame.Resize(len(validBuf))
-
-		//packet := gopacket.NewPacket(validBuf, layers.LayerTypeTCP, gopacket.Default)
-		//if tcpLayer := packet.Layer(layers.LayerTypeTCP); tcpLayer != nil {
-		//	fmt.Println("This is a TCP packet!")
-		//	// Get actual TCP data from this layer
-		//	tcp, _ := tcpLayer.(*layers.TCP)
-		//	fmt.Printf("From src port %d to dst port %d\n", tcp.SrcPort, tcp.DstPort)
-		//}
-		//// Iterate over all layers, printing out each layer type
-		//for _, layer := range packet.Layers() {
-		//	fmt.Println("PACKET LAYER:", layer.LayerType())
-		//}
-
 		packet := gopacket.NewPacket(validBuf, layers.LayerTypeIPv4, gopacket.Default)
-		if ipv4Layer := packet.Layer(layers.LayerTypeIPv4); ipv4Layer != nil {
-			ipv4, _ := ipv4Layer.(*layers.IPv4)
-			fmt.Println("dest: ", ipv4)
-			copy(frame.Destination(), ipv4.DstIP)
-			// TODO: convert ipv4.DstIP to string and get ether
-			//netID, tapID := localnet.GetNetIdAndTapId(ctx, addr)
-			//tapName := fmt.Sprintf("server%s-%s", netID, tapID)
-			//getTapEther(tapName)
+		ipv4Layer := packet.Layer(layers.LayerTypeIPv4)
+		if ipv4Layer == nil {
+			logger.Error("ipv4 error")
+			return
 		}
+
+		ipv4, _ := ipv4Layer.(*layers.IPv4)
+		srcIP := ipv4.SrcIP.String()
+		dstIP := ipv4.DstIP.String()
+
+		fmt.Println("src: ", srcIP)
+		fmt.Println("dest: ", dstIP)
+
+		frame := PrepareFrame(srcIP, dstIP, len(validBuf), ctx)
 
 		copy(frame.Payload(), validBuf)
 		fmt.Println("PAYLOAD ", frame.Payload())
 
-		_, err = tapIf.Write(frame)
+		fmt.Println("SEND PACKET", frame)
+		n, err = tapIf.Write(frame)
+		fmt.Println("WROTE ", n)
 		if err != nil {
 			logger.Error("failed to write to tap", zap.Error(err))
 			errCh <- err
