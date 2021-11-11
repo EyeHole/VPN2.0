@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 	"net"
 	"os/exec"
 
@@ -53,20 +55,31 @@ func GetTunName(serviceName string, netID int, clientID int) string {
 func HandleTunEvent(ctx context.Context, tunIf *water.Interface, conn net.Conn, errCh chan error) {
 	logger := ctxmeta.GetLogger(ctx)
 
-	packet := make([]byte, 1500)
+	buffer := make([]byte, 1500)
 
 	for {
-		n, err := tunIf.Read(packet)
+		n, err := tunIf.Read(buffer)
 		if err != nil {
 			logger.Error("failed to read from tun", zap.Error(err))
 			errCh <- err
 		}
-		packet = packet[:n]
+		validBuf := buffer[:n]
+
+		packet := gopacket.NewPacket(validBuf, layers.LayerTypeIPv4, gopacket.Default)
+		ipv4Layer := packet.Layer(layers.LayerTypeIPv4)
+		if ipv4Layer == nil {
+			logger.Error("ipv4 error")
+			return
+		}
+
+		//ipv4, _ := ipv4Layer.(*layers.IPv4)
+		//srcIP := ipv4.SrcIP.String()
+		//dstIP := ipv4.DstIP.String()
 
 		//logger.Info("got in tap", zap.String("payload", msg))
 
 		//packet = append(packet, []byte("\n")[0])
-		_, err = conn.Write(packet)
+		_, err = conn.Write(packet.Data())
 		if err != nil {
 			logger.Error("failed to write to conn", zap.Error(err))
 			errCh <- err

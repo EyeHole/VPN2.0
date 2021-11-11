@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
+	cmdchain "github.com/rainu/go-command-chain"
 	"github.com/songgao/packets/ethernet"
 	"github.com/songgao/water"
 	"go.uber.org/zap"
@@ -17,7 +18,6 @@ import (
 	lib "VPN2.0/lib/cmd"
 	"VPN2.0/lib/ctxmeta"
 	"VPN2.0/lib/localnet"
-	cmdchain "github.com/rainu/go-command-chain"
 )
 
 func getTapEther(tapName string) net.HardwareAddr {
