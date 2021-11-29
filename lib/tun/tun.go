@@ -4,10 +4,11 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
 	"net"
 	"os/exec"
+
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 
 	"VPN2.0/lib/ctxmeta"
 	"github.com/songgao/water"
@@ -72,13 +73,6 @@ func HandleTunEvent(ctx context.Context, tunIf *water.Interface, conn net.Conn, 
 			return
 		}
 
-		//ipv4, _ := ipv4Layer.(*layers.IPv4)
-		//srcIP := ipv4.SrcIP.String()
-		//dstIP := ipv4.DstIP.String()
-
-		//logger.Info("got in tap", zap.String("payload", msg))
-
-		//packet = append(packet, []byte("\n")[0])
 		_, err = conn.Write(packet.Data())
 		if err != nil {
 			logger.Error("failed to write to conn", zap.Error(err))
@@ -94,18 +88,6 @@ func HandleConnTunEvent(ctx context.Context, tunIf *water.Interface, conn net.Co
 	writer := bufio.NewWriter(tunIf)
 
 	for {
-		/*buf, err := reader.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				logger.Warn("connection was closed")
-				return
-			}
-			logger.Error("got error while reading from conn", zap.Error(err))
-			errCh <- err
-			return
-		}*/
-
-		//logger.Debug("got in conn", zap.String("buffer", buf))
 		var packet = make([]byte, 1500)
 		n, err := reader.Read(packet)
 

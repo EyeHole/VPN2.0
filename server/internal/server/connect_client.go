@@ -1,7 +1,6 @@
 package server
 
 import (
-	"VPN2.0/lib/localnet"
 	"context"
 	"errors"
 	"fmt"
@@ -9,11 +8,14 @@ import (
 	"net"
 	"os/exec"
 
+	"VPN2.0/lib/localnet"
+	"VPN2.0/lib/tun"
+
 	"go.uber.org/zap"
 
 	"VPN2.0/lib/cmd"
 	"VPN2.0/lib/ctxmeta"
-	"VPN2.0/lib/tap"
+	"VPN2.0/lib/server_tun"
 )
 
 func (s *Manager) processConnectRequest(ctx context.Context, args []string, conn net.Conn) error {
@@ -71,10 +73,10 @@ func (s *Manager) processConnectRequest(ctx context.Context, args []string, conn
 		return err
 	}
 
-	serverTapName := tap.GetTapName("server", network.ID, clientID)
+	serverTapName := server_tun.GetTunName("server", network.ID, clientID)
 	tapAddr := fmt.Sprintf("%d.%d.%d.%d/%d", 10, network.ID, 0, clientID, network.Mask)
 
-	tapIf, err := tap.ConnectToTap(ctx, serverTapName)
+	tapIf, err := tun.ConnectToTun(ctx, serverTapName)
 	if err != nil {
 		errSend := sendResult(ctx, respErr, conn)
 		if errSend != nil {
@@ -89,7 +91,7 @@ func (s *Manager) processConnectRequest(ctx context.Context, args []string, conn
 		return errors.New("failed to get brd")
 	}
 
-	err = tap.SetTapUp(ctx, tapAddr, brd, serverTapName)
+	err = tun.SetTunUp(ctx, tapAddr, brd, serverTapName)
 	if err != nil {
 		errSend := sendResult(ctx, respErr, conn)
 		if errSend != nil {
@@ -121,8 +123,8 @@ func (s *Manager) processConnectRequest(ctx context.Context, args []string, conn
 	logger.Debug("sent resp", zap.String("response", respSuccess))
 
 	errCh := make(chan error, 1)
-	go tap.HandleTapEvent(ctx, tapIf, conn, errCh)
-	go tap.HandleConnEvent(ctx, tapIf, conn, errCh)
+	go tun.HandleTunEvent(ctx, tapIf, conn, errCh)
+	go server_tun.HandleServerConnEvent(ctx, conn, errCh)
 
 	close(errCh)
 	if err = <-errCh; err != nil {
@@ -147,5 +149,3 @@ func addTapToBridge(ctx context.Context, tapName string, bridgeName string) erro
 
 	return nil
 }
-
-
