@@ -8,12 +8,12 @@ import (
 	"net"
 	"os/exec"
 
+	"VPN2.0/lib/cmd"
 	"VPN2.0/lib/localnet"
 	"VPN2.0/lib/tun"
 
 	"go.uber.org/zap"
 
-	"VPN2.0/lib/cmd"
 	"VPN2.0/lib/ctxmeta"
 	"VPN2.0/lib/server_tun"
 )
@@ -102,7 +102,7 @@ func (s *Manager) processConnectRequest(ctx context.Context, args []string, conn
 	}
 	logger.Debug("Set tap up", zap.String("tap_name", serverTapName))
 
-	err = addTapToBridge(ctx, serverTapName, getBridgeName(network.ID))
+	/*err = addTapToBridge(ctx, serverTapName, getBridgeName(network.ID))
 	if err != nil {
 		errSend := sendResult(ctx, respErr, conn)
 		if errSend != nil {
@@ -113,7 +113,7 @@ func (s *Manager) processConnectRequest(ctx context.Context, args []string, conn
 	}
 
 	logger.Debug("Added tap to bridge", zap.String("tap_name", serverTapName), zap.String("bridge_name", getBridgeName(network.ID)))
-
+	*/
 	respSuccess := fmt.Sprintf("%s %s", cmd.SuccessResponse, tapAddr)
 	err = sendResult(ctx, respSuccess, conn)
 	if err != nil {

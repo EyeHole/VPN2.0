@@ -54,7 +54,7 @@ func HandleServerConnEvent(ctx context.Context, conn net.Conn, errCh chan error)
 		file, err := os.Open("/dev/" + dstTunName)
 		if err != nil {
 			logger.Error("failed to open tun", zap.Error(err))
-			errCh <- err
+			return
 		}
 
 		file.Write(validBuf)
