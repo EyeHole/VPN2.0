@@ -50,16 +50,6 @@ func (m *Manager) GetFirstAvailableClient(ctx context.Context, netID int, netCap
 	return clientID, nil
 }
 
-func (m *Manager) ClientExist(ctx context.Context, netID int, clientID int) (bool, error) {
-	logger := ctxmeta.GetLogger(ctx)
-	isSet, err := redis.Bool(m.redis.Do("HEXISTS", strconv.Itoa(netID), strconv.Itoa(clientID)))
-	if err != nil {
-		logger.Error("failed to check clientID for existence", zap.Error(err))
-		return false, err
-	}
-	return isSet, nil
-}
-
 func (m *Manager) SetClient(ctx context.Context, netID int, clientID int) error {
 	logger := ctxmeta.GetLogger(ctx)
 
