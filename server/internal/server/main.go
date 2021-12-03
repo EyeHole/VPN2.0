@@ -12,10 +12,12 @@ import (
 
 	commands "VPN2.0/lib/cmd"
 	"VPN2.0/lib/ctxmeta"
+	"VPN2.0/server/storage"
 )
 
 func (s *Manager) RunServer(ctx context.Context, serverAddr string) error {
 	logger := ctxmeta.GetLogger(ctx)
+	storage.SetStorage()
 
 	logger.Info(serverAddr)
 	listener, err := net.Listen("tcp", serverAddr)

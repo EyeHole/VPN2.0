@@ -3,9 +3,10 @@ package server
 import (
 	"context"
 	"errors"
-	"go.uber.org/zap"
 	"net"
 	"os/exec"
+
+	"go.uber.org/zap"
 
 	"VPN2.0/lib/ctxmeta"
 )
@@ -47,12 +48,12 @@ func (s *Manager) processNetworkCreationRequest(ctx context.Context, args []stri
 }
 
 func (s *Manager) createNetwork(ctx context.Context, name string, passwordHash string) error {
-	netID, err := s.db.AddNetwork(ctx, name, passwordHash, mask)
+	_, err := s.db.AddNetwork(ctx, name, passwordHash, mask)
 	if err != nil {
 		return err
 	}
 
-	return createBridge(ctx, netID)
+	return nil
 }
 
 func createBridge(ctx context.Context, netID int) error {

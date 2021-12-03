@@ -86,8 +86,6 @@ func (s *Manager) processConnectRequest(ctx context.Context, args []string, conn
 		return err
 	}
 
-	storage.Tuns[serverTapName] = tapIf
-
 	brd := localnet.GetBrdFromIp(ctx, tapAddr)
 	if brd == "" {
 		return errors.New("failed to get brd")
@@ -103,6 +101,8 @@ func (s *Manager) processConnectRequest(ctx context.Context, args []string, conn
 		return err
 	}
 	logger.Debug("Set tap up", zap.String("tap_name", serverTapName))
+
+	storage.AddTun(serverTapName, tapIf)
 
 	/*err = addTapToBridge(ctx, serverTapName, getBridgeName(network.ID))
 	if err != nil {

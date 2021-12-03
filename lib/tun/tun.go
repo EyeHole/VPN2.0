@@ -73,7 +73,7 @@ func HandleTunEvent(ctx context.Context, tunIf *water.Interface, conn net.Conn, 
 			return
 		}
 
-		_, err = conn.Write(packet.Data())
+		_, err = conn.Write(validBuf)
 		if err != nil {
 			logger.Error("failed to write to conn", zap.Error(err))
 			errCh <- err

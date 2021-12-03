@@ -52,7 +52,7 @@ func HandleServerConnEvent(ctx context.Context, conn net.Conn, errCh chan error)
 		dstTunName := fmt.Sprintf("server_tun%s_%s", dstNetID, dstTunID)
 
 		//file, err := os.Open("/dev/" + dstTunName)
-		tun, found := storage.Tuns[dstTunName]
+		tun, found := storage.GetTun(dstTunName)
 
 		if err != nil || !found {
 			logger.Error("failed to open tun", zap.Error(err))
