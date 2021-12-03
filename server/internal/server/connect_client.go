@@ -1,13 +1,13 @@
 package server
 
 import (
-	"VPN2.0/lib/localnet"
 	"context"
 	"errors"
 	"fmt"
 	"math"
 	"net"
-	"os/exec"
+
+	"VPN2.0/lib/localnet"
 
 	"go.uber.org/zap"
 
@@ -71,10 +71,10 @@ func (s *Manager) processConnectRequest(ctx context.Context, args []string, conn
 		return err
 	}
 
-	serverTapName := tap.GetTapName("server", network.ID, clientID)
-	tapAddr := fmt.Sprintf("%d.%d.%d.%d/%d", 10, network.ID, 0, clientID, network.Mask)
+	serverTunName := tap.GetTunName("server", network.ID, clientID)
+	tunAddr := fmt.Sprintf("%d.%d.%d.%d/%d", 10, network.ID, 0, clientID, network.Mask)
 
-	tapIf, err := tap.ConnectToTap(ctx, serverTapName)
+	tunIf, err := tap.ConnectToTun(ctx, serverTunName)
 	if err != nil {
 		errSend := sendResult(ctx, respErr, conn)
 		if errSend != nil {
@@ -84,12 +84,12 @@ func (s *Manager) processConnectRequest(ctx context.Context, args []string, conn
 		return err
 	}
 
-	brd := localnet.GetBrdFromIp(ctx, tapAddr)
+	brd := localnet.GetBrdFromIp(ctx, tunAddr)
 	if brd == "" {
 		return errors.New("failed to get brd")
 	}
 
-	err = tap.SetTapUp(ctx, tapAddr, brd, serverTapName)
+	err = tap.SetTunUp(ctx, tunAddr, brd, serverTunName)
 	if err != nil {
 		errSend := sendResult(ctx, respErr, conn)
 		if errSend != nil {
@@ -98,21 +98,11 @@ func (s *Manager) processConnectRequest(ctx context.Context, args []string, conn
 		}
 		return err
 	}
-	logger.Debug("Set tap up", zap.String("tap_name", serverTapName))
+	logger.Debug("Set tun up", zap.String("tun_name", serverTunName))
 
-	err = addTapToBridge(ctx, serverTapName, getBridgeName(network.ID))
-	if err != nil {
-		errSend := sendResult(ctx, respErr, conn)
-		if errSend != nil {
-			logger.Error("failed to send resp", zap.String("response", respErr))
-			return errSend
-		}
-		return err
-	}
+	//storage.AddTun(serverTunName, tunIf)
 
-	logger.Debug("Added tap to bridge", zap.String("tap_name", serverTapName), zap.String("bridge_name", getBridgeName(network.ID)))
-
-	respSuccess := fmt.Sprintf("%s %s", cmd.SuccessResponse, tapAddr)
+	respSuccess := fmt.Sprintf("%s %s", cmd.SuccessResponse, tunAddr)
 	err = sendResult(ctx, respSuccess, conn)
 	if err != nil {
 		logger.Error("failed to send resp", zap.String("response", respSuccess))
@@ -121,8 +111,8 @@ func (s *Manager) processConnectRequest(ctx context.Context, args []string, conn
 	logger.Debug("sent resp", zap.String("response", respSuccess))
 
 	errCh := make(chan error, 1)
-	go tap.HandleTapEvent(ctx, tapIf, conn, errCh)
-	go tap.HandleConnEvent(ctx, tapIf, conn, errCh)
+	go tap.HandleTunEvent(ctx, tunIf, conn, errCh)
+	go tap.HandleConnEvent(ctx /* tunIf,*/, conn, errCh)
 
 	close(errCh)
 	if err = <-errCh; err != nil {
@@ -135,17 +125,3 @@ func (s *Manager) processConnectRequest(ctx context.Context, args []string, conn
 func getNetworkCapacity(mask int) int {
 	return int(math.Pow(2, float64(32-mask)) - 2)
 }
-
-func addTapToBridge(ctx context.Context, tapName string, bridgeName string) error {
-	logger := ctxmeta.GetLogger(ctx)
-
-	_, err := exec.Command("ip", "link", "set", tapName, "master", bridgeName).Output()
-	if err != nil {
-		logger.Error("failed to add tap to bridge", zap.Error(err))
-		return err
-	}
-
-	return nil
-}
-
-

@@ -2,125 +2,97 @@ package tap
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"fmt"
 	"net"
 	"os/exec"
+	"sync"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
-	cmdchain "github.com/rainu/go-command-chain"
-	"github.com/songgao/packets/ethernet"
 	"github.com/songgao/water"
 	"go.uber.org/zap"
 
-	lib "VPN2.0/lib/cmd"
 	"VPN2.0/lib/ctxmeta"
 	"VPN2.0/lib/localnet"
+	"VPN2.0/server/storage"
 )
 
-func getTapEther(tapName string) net.HardwareAddr {
-	fmt.Println("tap name", tapName)
-
-	addr := &bytes.Buffer{}
-	err := cmdchain.Builder().
-		Join("ip", "addr", "show", tapName).
-		Join("grep", "ether").
-		Finalize().WithOutput(addr).Run()
-	if err != nil {
-		fmt.Println("error", err)
-	}
-
-	addrWords := lib.GetWords(addr.String())
-
-	if len(addrWords) < 3 {
-		mac, _ := net.ParseMAC("")
-		return mac
-	}
-
-	fmt.Println("ether: ", addrWords[2])
-
-	mac, _ := net.ParseMAC(addrWords[2])
-	return mac
+var stor = storage.Storage{
+	Tuns: map[string]*water.Interface{},
+	Mu:   &sync.Mutex{},
 }
 
-func ConnectToTap(ctx context.Context, tapName string) (*water.Interface, error) {
+func ConnectToTun(ctx context.Context, tunName string) (*water.Interface, error) {
 	logger := ctxmeta.GetLogger(ctx)
 
 	config := water.Config{
-		DeviceType: water.TAP,
+		DeviceType: water.TUN,
 	}
-	config.Name = tapName
+	config.Name = tunName
 
 	ifce, err := water.New(config)
 	if err != nil {
 		logger.Error("failed to connect to tap interface", zap.Error(err))
 		return nil, err
 	}
+
+	stor.Mu.Lock()
+	stor.Tuns[tunName] = ifce
+	stor.Mu.Lock()
+
 	return ifce, nil
 }
 
-func SetTapUp(ctx context.Context, addr string, brd string, tapName string) error {
+func SetTunUp(ctx context.Context, addr string, brd string, tunName string) error {
 	logger := ctxmeta.GetLogger(ctx)
 
-	_, err := exec.Command("ip", "a", "add", addr, "dev", tapName, "broadcast", brd).Output()
+	_, err := exec.Command("ip", "a", "add", addr, "dev", tunName, "broadcast", brd).Output()
 	if err != nil {
-		logger.Error("failed to add tap interface", zap.Error(err))
+		logger.Error("failed to add tun interface", zap.Error(err))
 		return err
 	}
 
-	_, err = exec.Command("ip", "link", "set", "dev", tapName, "up").Output()
+	_, err = exec.Command("ip", "link", "set", "dev", tunName, "up").Output()
 	if err != nil {
-		logger.Error("failed to set tap interface up", zap.Error(err))
+		logger.Error("failed to set tun interface up", zap.Error(err))
 		return err
 	}
 
 	return nil
 }
 
-func GetTapName(serviceName string, netID int, clientID int) string {
-	return fmt.Sprintf("%s_tap%d_%d", serviceName, netID, clientID)
+func GetTunName(serviceName string, netID int, clientID int) string {
+	return fmt.Sprintf("%s_tun%d_%d", serviceName, netID, clientID)
 }
 
-func PrepareFrame(src string, dst string, size int, ctx context.Context) ethernet.Frame {
-	var frame ethernet.Frame
-
-	dstNetID, dstTapID := localnet.GetNetIdAndTapId(ctx, dst)
-	dstTapName := fmt.Sprintf("server_tap%s_%s", dstNetID, dstTapID)
-	dstEther := getTapEther(dstTapName)
-
-	srcNetID, srcTapID := localnet.GetNetIdAndTapId(ctx, src)
-	srcTapName := fmt.Sprintf("server_tap%s_%s", srcNetID, srcTapID)
-	srcEther := getTapEther(srcTapName)
-
-	frame.Prepare(dstEther, srcEther, ethernet.NotTagged, ethernet.IPv4, size)
-	return frame
-}
-
-func HandleTapEvent(ctx context.Context, tapIf *water.Interface, conn net.Conn, errCh chan error) {
+func HandleTunEvent(ctx context.Context, tunIf *water.Interface, conn net.Conn, errCh chan error) {
 	logger := ctxmeta.GetLogger(ctx)
 
-	var frame ethernet.Frame
+	buffer := make([]byte, 1500)
 
 	for {
-		frame.Resize(1500)
-		n, err := tapIf.Read(frame)
+		n, err := tunIf.Read(buffer)
 		if err != nil {
-			logger.Error("failed to read from tap", zap.Error(err))
+			logger.Error("failed to read from tun", zap.Error(err))
 			errCh <- err
 		}
-		frame = frame[:n]
+		validBuf := buffer[:n]
 
-		/*fmt.Println("TAP SOURCE ", frame.Source())
-		fmt.Println("TAP DESTINATION ", frame.Destination())
-		fmt.Println("TAP ", frame.Payload())*/
-		fmt.Println("TAP ", tapIf.Name(), "\n GOT ", frame)
+		packet := gopacket.NewPacket(validBuf, layers.LayerTypeIPv4, gopacket.Default)
+		ipv4Layer := packet.Layer(layers.LayerTypeIPv4)
+		if ipv4Layer == nil {
+			logger.Error("ipv4 error")
+			return
+		}
 
-		//msg := string(frame.Payload())
+		//ipv4, _ := ipv4Layer.(*layers.IPv4)
+		//srcIP := ipv4.SrcIP.String()
+		//dstIP := ipv4.DstIP.String()
+
 		//logger.Info("got in tap", zap.String("payload", msg))
 
-		_, err = conn.Write(frame.Payload())
+		_, err = conn.Write(packet.Data())
 		if err != nil {
 			logger.Error("failed to write to conn", zap.Error(err))
 			errCh <- err
@@ -128,7 +100,7 @@ func HandleTapEvent(ctx context.Context, tapIf *water.Interface, conn net.Conn, 
 	}
 }
 
-func HandleConnEvent(ctx context.Context, tapIf *water.Interface, conn net.Conn, errCh chan error) {
+func HandleConnEvent(ctx context.Context /*, tun *water.Interface*/, conn net.Conn, errCh chan error) {
 	logger := ctxmeta.GetLogger(ctx)
 
 	reader := bufio.NewReader(conn)
@@ -157,16 +129,21 @@ func HandleConnEvent(ctx context.Context, tapIf *water.Interface, conn net.Conn,
 		fmt.Println("src: ", srcIP)
 		fmt.Println("dest: ", dstIP)
 
-		frame := PrepareFrame(srcIP, dstIP, len(validBuf), ctx)
+		dstNetID, dstTunID := localnet.GetNetIdAndTapId(ctx, dstIP)
+		dstTunName := fmt.Sprintf("server_tun%s_%s", dstNetID, dstTunID)
 
-		copy(frame.Payload(), validBuf)
-		fmt.Println("PAYLOAD ", frame.Payload())
+		// tun, found := storage.GetTun(dstTunName)
 
-		fmt.Println("SEND PACKET", frame)
-		n, err = tapIf.Write(frame)
+		tun, found := stor.Tuns[dstTunName]
+		if !found {
+			logger.Error("failed to find tun", zap.Error(err))
+			return
+		}
+
+		n, err = tun.Write(packet.Data())
 		fmt.Println("WROTE ", n)
 		if err != nil {
-			logger.Error("failed to write to tap", zap.Error(err))
+			logger.Error("failed to write to tun", zap.Error(err))
 			errCh <- err
 		}
 	}
