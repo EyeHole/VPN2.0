@@ -73,6 +73,13 @@ func HandleTunEvent(ctx context.Context, tunIf *water.Interface, conn net.Conn, 
 			return
 		}
 
+		ipv4, _ := ipv4Layer.(*layers.IPv4)
+		srcIP := ipv4.SrcIP.String()
+		dstIP := ipv4.DstIP.String()
+
+		fmt.Println("src: ", srcIP)
+		fmt.Println("dest: ", dstIP)
+
 		_, err = conn.Write(packet.Data())
 		if err != nil {
 			logger.Error("failed to write to conn", zap.Error(err))
