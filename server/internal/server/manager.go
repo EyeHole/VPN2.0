@@ -1,6 +1,7 @@
 package server
 
 import (
+	"VPN2.0/server/storage"
 	"context"
 	"fmt"
 
@@ -12,6 +13,7 @@ import (
 type Manager struct {
 	db    *db.Manager
 	cache *cache.Manager
+	storage *storage.Storage
 }
 
 const (
@@ -37,9 +39,12 @@ func CreateServer(ctx context.Context) (*Manager, error) {
 	}
 	logger.Debug("set up networks table")
 
+	connStorage := storage.SetStorage()
+
 	return &Manager{
 		db:    dbManager,
 		cache: cacheManager,
+		storage: connStorage,
 	}, nil
 }
 

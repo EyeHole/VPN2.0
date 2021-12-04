@@ -1,9 +1,12 @@
 package server
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 	"math"
 	"net"
 
@@ -71,38 +74,40 @@ func (s *Manager) processConnectRequest(ctx context.Context, args []string, conn
 		return err
 	}
 
-	serverTunName := tap.GetTunName("server", network.ID, clientID)
-	tunAddr := fmt.Sprintf("%d.%d.%d.%d/%d", 10, network.ID, 0, clientID, network.Mask)
+	serverConnName := tap.GetConnName(network.ID, clientID)
+	s.storage.AddTun(serverConnName, conn)
 
-	tunIf, err := tap.ConnectToTun(ctx, serverTunName)
-	if err != nil {
-		errSend := sendResult(ctx, respErr, conn)
-		if errSend != nil {
-			logger.Error("failed to send resp", zap.String("response", respErr))
-			return errSend
-		}
-		return err
-	}
+	ipAddr := fmt.Sprintf("%d.%d.%d.%d/%d", 10, network.ID, 0, clientID, network.Mask)
 
-	brd := localnet.GetBrdFromIp(ctx, tunAddr)
-	if brd == "" {
-		return errors.New("failed to get brd")
-	}
-
-	err = tap.SetTunUp(ctx, tunAddr, brd, serverTunName)
-	if err != nil {
-		errSend := sendResult(ctx, respErr, conn)
-		if errSend != nil {
-			logger.Error("failed to send resp", zap.String("response", respErr))
-			return errSend
-		}
-		return err
-	}
-	logger.Debug("Set tun up", zap.String("tun_name", serverTunName))
+	//tunIf, err := tap.ConnectToTun(ctx, serverTunName)
+	//if err != nil {
+	//	errSend := sendResult(ctx, respErr, conn)
+	//	if errSend != nil {
+	//		logger.Error("failed to send resp", zap.String("response", respErr))
+	//		return errSend
+	//	}
+	//	return err
+	//}
+	//
+	//brd := localnet.GetBrdFromIp(ctx, tunAddr)
+	//if brd == "" {
+	//	return errors.New("failed to get brd")
+	//}
+	//
+	//err = tap.SetTunUp(ctx, tunAddr, brd, serverTunName)
+	//if err != nil {
+	//	errSend := sendResult(ctx, respErr, conn)
+	//	if errSend != nil {
+	//		logger.Error("failed to send resp", zap.String("response", respErr))
+	//		return errSend
+	//	}
+	//	return err
+	//}
+	//logger.Debug("Set tun up", zap.String("tun_name", serverTunName))
 
 	//storage.AddTun(serverTunName, tunIf)
 
-	respSuccess := fmt.Sprintf("%s %s", cmd.SuccessResponse, tunAddr)
+	respSuccess := fmt.Sprintf("%s %s", cmd.SuccessResponse, ipAddr)
 	err = sendResult(ctx, respSuccess, conn)
 	if err != nil {
 		logger.Error("failed to send resp", zap.String("response", respSuccess))
@@ -111,8 +116,8 @@ func (s *Manager) processConnectRequest(ctx context.Context, args []string, conn
 	logger.Debug("sent resp", zap.String("response", respSuccess))
 
 	errCh := make(chan error, 1)
-	go tap.HandleTunEvent(ctx, tunIf, conn, errCh)
-	go tap.HandleConnEvent(ctx /* tunIf,*/, conn, errCh)
+	//go tap.HandleTunEvent(ctx, tunIf, conn, errCh)
+	go s.HandleConnEvent(ctx, conn, errCh)
 
 	close(errCh)
 	if err = <-errCh; err != nil {
@@ -124,4 +129,51 @@ func (s *Manager) processConnectRequest(ctx context.Context, args []string, conn
 
 func getNetworkCapacity(mask int) int {
 	return int(math.Pow(2, float64(32-mask)) - 2)
+}
+
+func (s *Manager) HandleConnEvent(ctx context.Context, conn net.Conn, errCh chan error) {
+	logger := ctxmeta.GetLogger(ctx)
+
+	reader := bufio.NewReader(conn)
+	for {
+		var bufPool = make([]byte, 1500)
+		n, err := reader.Read(bufPool)
+
+		if err != nil {
+			fmt.Println("read failed:", n, err)
+		}
+
+		validBuf := bufPool[:n]
+		fmt.Println("CONNECTION ", validBuf)
+
+		packet := gopacket.NewPacket(validBuf, layers.LayerTypeIPv4, gopacket.Default)
+		ipv4Layer := packet.Layer(layers.LayerTypeIPv4)
+		if ipv4Layer == nil {
+			logger.Error("ipv4 error")
+			return
+		}
+
+		ipv4, _ := ipv4Layer.(*layers.IPv4)
+		srcIP := ipv4.SrcIP.String()
+		dstIP := ipv4.DstIP.String()
+
+		fmt.Println("src: ", srcIP)
+		fmt.Println("dest: ", dstIP)
+
+		dstNetID, dstTunID := localnet.GetNetIdAndTapId(ctx, dstIP)
+		dstConnName := fmt.Sprintf("conn%s_%s", dstNetID, dstTunID)
+
+		dstConn, found := s.storage.GetTun(dstConnName)
+		if !found {
+			logger.Warn("failed to find conn", zap.Error(err))
+			continue
+		}
+
+		n, err = dstConn.Write(packet.Data())
+		fmt.Println("WROTE ", n)
+		if err != nil {
+			logger.Error("failed to write to conn", zap.Error(err))
+			errCh <- err
+		}
+	}
 }

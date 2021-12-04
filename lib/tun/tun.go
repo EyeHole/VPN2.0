@@ -94,28 +94,31 @@ func HandleConnTunEvent(ctx context.Context, tunIf *water.Interface, conn net.Co
 	writer := bufio.NewWriter(tunIf)
 
 	for {
-		/*buf, err := reader.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				logger.Warn("connection was closed")
-				return
-			}
-			logger.Error("got error while reading from conn", zap.Error(err))
-			errCh <- err
-			return
-		}*/
-
-		//logger.Debug("got in conn", zap.String("buffer", buf))
-		var packet = make([]byte, 1500)
-		n, err := reader.Read(packet)
+		var bufPool = make([]byte, 1500)
+		n, err := reader.Read(bufPool)
 
 		if err != nil {
 			fmt.Println("read failed:", n, err)
 		}
 
-		packet = packet[:n]
+		validBuf := bufPool[:n]
+		fmt.Println("CONNECTION ", validBuf)
 
-		_, err = writer.Write(packet)
+		packet := gopacket.NewPacket(validBuf, layers.LayerTypeIPv4, gopacket.Default)
+		ipv4Layer := packet.Layer(layers.LayerTypeIPv4)
+		if ipv4Layer == nil {
+			logger.Error("ipv4 error")
+			return
+		}
+
+		ipv4, _ := ipv4Layer.(*layers.IPv4)
+		srcIP := ipv4.SrcIP.String()
+		dstIP := ipv4.DstIP.String()
+
+		fmt.Println("src: ", srcIP)
+		fmt.Println("dest: ", dstIP)
+
+		_, err = writer.Write(packet.Data())
 		if err != nil {
 			logger.Error("failed to write to tun", zap.Error(err))
 			errCh <- err

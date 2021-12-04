@@ -1,36 +1,34 @@
 package storage
 
 import (
+	"net"
 	"sync"
-
-	"github.com/songgao/water"
 )
 
 type Storage struct {
-	Tuns map[string]*water.Interface
-	Mu   *sync.Mutex
+	Connections map[string]net.Conn
+	Mu          *sync.Mutex
 }
 
-//var Tuns *Storage
 
-/*func SetStorage() {
+func SetStorage() *Storage {
 	storage := Storage{
-		Tuns: map[string]*water.Interface{},
-		Mu:   &sync.Mutex{},
+		Connections: map[string]net.Conn{},
+		Mu:          &sync.Mutex{},
 	}
-	Tuns = &storage
-}*/
-
-/*
-func AddTun(name string, tun *water.Interface) {
-	Tuns.Mu.Lock()
-	Tuns.Tuns[name] = tun
-	Tuns.Mu.Unlock()
+	return &storage
 }
 
-func GetTun(name string) (*water.Interface, bool) {
-	Tuns.Mu.Lock()
-	tun, err := Tuns.Tuns[name]
-	Tuns.Mu.Unlock()
-	return tun, err
-}*/
+
+func (s *Storage) AddTun(name string, conn net.Conn) {
+	s.Mu.Lock()
+	s.Connections[name] = conn
+	s.Mu.Unlock()
+}
+
+func (s *Storage) GetTun(name string) (net.Conn, bool) {
+	s.Mu.Lock()
+	conn, err := s.Connections[name]
+	s.Mu.Unlock()
+	return conn, err
+}
