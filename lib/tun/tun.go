@@ -8,6 +8,7 @@ import (
 	"github.com/google/gopacket/layers"
 	"net"
 	"os/exec"
+	"sync"
 
 	"VPN2.0/lib/ctxmeta"
 	"github.com/songgao/water"
@@ -52,7 +53,9 @@ func GetTunName(serviceName string, netID int, clientID int) string {
 	return fmt.Sprintf("%s_tun%d_%d", serviceName, netID, clientID)
 }
 
-func HandleTunEvent(ctx context.Context, tunIf *water.Interface, conn net.Conn, errCh chan error) {
+func HandleTunEvent(ctx context.Context, tunIf *water.Interface, wg *sync.WaitGroup, conn net.Conn, errCh chan error) {
+	defer wg.Done()
+
 	logger := ctxmeta.GetLogger(ctx)
 
 	buffer := make([]byte, 1500)
@@ -80,7 +83,9 @@ func HandleTunEvent(ctx context.Context, tunIf *water.Interface, conn net.Conn, 
 	}
 }
 
-func HandleConnTunEvent(ctx context.Context, tunIf *water.Interface, conn net.Conn, errCh chan error) {
+func HandleConnTunEvent(ctx context.Context, tunIf *water.Interface, wg *sync.WaitGroup, conn net.Conn, errCh chan error) {
+	defer wg.Done()
+
 	logger := ctxmeta.GetLogger(ctx)
 
 	reader := bufio.NewReader(conn)
@@ -89,7 +94,8 @@ func HandleConnTunEvent(ctx context.Context, tunIf *water.Interface, conn net.Co
 		n, err := reader.Read(bufPool)
 
 		if err != nil {
-			fmt.Println("read failed:", n, err)
+			logger.Error("failed to read from conn", zap.Error(err))
+			errCh <- err
 		}
 
 		validBuf := bufPool[:n]

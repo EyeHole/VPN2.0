@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -17,14 +18,14 @@ import (
 	"VPN2.0/lib/tun"
 )
 
-func processResp(ctx context.Context, conn net.Conn, cmdName string, errCh chan error) {
+func processResp(ctx context.Context, conn net.Conn, cmdName string) error {
 	logger := ctxmeta.GetLogger(ctx)
 
 	clientReader := bufio.NewReader(conn)
 	resp, err := clientReader.ReadString('\n')
 	if err != nil {
 		logger.Error("failed to read from conn", zap.Error(err))
-		errCh <- err
+		return err
 	}
 
 	logger.Info("Got resp", zap.String("resp", resp))
@@ -34,35 +35,48 @@ func processResp(ctx context.Context, conn net.Conn, cmdName string, errCh chan 
 		respStrings := commands.GetWords(resp)
 		if len(respStrings) < 2 {
 			logger.Error("empty resp from server")
-			errCh <- errors.New("empty resp")
+			return errors.New("empty resp")
 		}
 		if respStrings[0] != commands.SuccessResponse {
 			logger.Error("got error in server resp")
-			errCh <- errors.New("error in resp")
+			return errors.New("error in resp")
 		}
 
 		rand.Seed(time.Now().UnixNano())
 		tunName := tun.GetTunName("client", 1, 10+rand.Intn(191))
 		tunIf, err := tun.ConnectToTun(ctx, tunName)
 		if err != nil {
-			errCh <- err
+			return err
 		}
 		logger.Debug("connected to tun", zap.String("tun_name", tunName))
 
 		brd := localnet.GetBrdFromIp(ctx, respStrings[1])
 		if brd == "" {
-			errCh <- errors.New("failed to get brd")
+			return errors.New("failed to get brd")
 		}
 
 		err = tun.SetTunUp(ctx, respStrings[1], brd, tunName)
 		if err != nil {
-			errCh <- err
+			return err
 		}
 		logger.Debug("set tun up", zap.String("tun_name", tunName))
 
-		go tun.HandleTunEvent(ctx, tunIf, conn, errCh)
-		go tun.HandleConnTunEvent(ctx, tunIf, conn, errCh)
+		errCh := make(chan error, 1)
+
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go tun.HandleTunEvent(ctx, tunIf, &wg, conn, errCh)
+		wg.Add(1)
+		go tun.HandleConnTunEvent(ctx, tunIf, &wg, conn, errCh)
+		wg.Wait()
+
+		close(errCh)
+		if err = <-errCh; err != nil {
+			return err
+		}
 	}
+
+	return nil
 }
 
 func (c *Manager) makeRequest(ctx context.Context, msg string, cmdName string, addr string) (err error) {
@@ -74,10 +88,8 @@ func (c *Manager) makeRequest(ctx context.Context, msg string, cmdName string, a
 		return err
 	}
 
-	errCh := make(chan error, 1)
-	go processResp(ctx, conn, cmdName, errCh)
-	close(errCh)
-	if err := <-errCh; err != nil {
+	err = processResp(ctx, conn, cmdName)
+	if err != nil {
 		return err
 	}
 

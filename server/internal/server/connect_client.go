@@ -85,11 +85,8 @@ func (s *Manager) processConnectRequest(ctx context.Context, args []string, conn
 	}
 	logger.Debug("sent resp", zap.String("response", respSuccess))
 
-	errCh := make(chan error, 1)
-	go s.HandleConnEvent(ctx, conn, errCh)
-
-	close(errCh)
-	if err = <-errCh; err != nil {
+	err = s.HandleConnEvent(ctx, conn)
+	if err != nil {
 		return err
 	}
 
@@ -100,7 +97,7 @@ func getNetworkCapacity(mask int) int {
 	return int(math.Pow(2, float64(32-mask)) - 2)
 }
 
-func (s *Manager) HandleConnEvent(ctx context.Context, conn net.Conn, errCh chan error) {
+func (s *Manager) HandleConnEvent(ctx context.Context, conn net.Conn) error {
 	logger := ctxmeta.GetLogger(ctx)
 
 	reader := bufio.NewReader(conn)
@@ -109,7 +106,8 @@ func (s *Manager) HandleConnEvent(ctx context.Context, conn net.Conn, errCh chan
 		n, err := reader.Read(bufPool)
 
 		if err != nil {
-			fmt.Println("read failed:", n, err)
+			logger.Error("failed to read from conn", zap.Error(err))
+			return err
 		}
 
 		validBuf := bufPool[:n]
@@ -118,7 +116,7 @@ func (s *Manager) HandleConnEvent(ctx context.Context, conn net.Conn, errCh chan
 		ipv4Layer := packet.Layer(layers.LayerTypeIPv4)
 		if ipv4Layer == nil {
 			logger.Error("ipv4 error")
-			return
+			return errors.New("ipv4 error")
 		}
 
 		ipv4, _ := ipv4Layer.(*layers.IPv4)
@@ -140,7 +138,7 @@ func (s *Manager) HandleConnEvent(ctx context.Context, conn net.Conn, errCh chan
 		n, err = dstConn.Write(packet.Data())
 		if err != nil {
 			logger.Error("failed to write to conn", zap.Error(err))
-			errCh <- err
+			return err
 		}
 	}
 }
