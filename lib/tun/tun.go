@@ -93,7 +93,6 @@ func HandleConnTunEvent(ctx context.Context, tunIf *water.Interface, conn net.Co
 		}
 
 		validBuf := bufPool[:n]
-		fmt.Println("CONNECTION ", validBuf)
 
 		packet := gopacket.NewPacket(validBuf, layers.LayerTypeIPv4, gopacket.Default)
 		ipv4Layer := packet.Layer(layers.LayerTypeIPv4)
