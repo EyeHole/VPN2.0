@@ -1,6 +1,7 @@
 package tap
 
 import (
+	"VPN2.0/lib/localnet"
 	"bufio"
 	"context"
 	"fmt"
@@ -14,7 +15,6 @@ import (
 	"go.uber.org/zap"
 
 	"VPN2.0/lib/ctxmeta"
-	"VPN2.0/lib/localnet"
 	"VPN2.0/server/storage"
 )
 
@@ -39,7 +39,7 @@ func ConnectToTun(ctx context.Context, tunName string) (*water.Interface, error)
 
 	stor.Mu.Lock()
 	stor.Tuns[tunName] = ifce
-	stor.Mu.Lock()
+	stor.Mu.Unlock()
 
 	return ifce, nil
 }
@@ -86,10 +86,10 @@ func HandleTunEvent(ctx context.Context, tunIf *water.Interface, conn net.Conn, 
 			return
 		}
 
-		//ipv4, _ := ipv4Layer.(*layers.IPv4)
-		//srcIP := ipv4.SrcIP.String()
-		//dstIP := ipv4.DstIP.String()
-
+		ipv4, _ := ipv4Layer.(*layers.IPv4)
+		srcIP := ipv4.SrcIP.String()
+		dstIP := ipv4.DstIP.String()
+		fmt.Println("in conn, src: ", srcIP, "dest: ", dstIP)
 		//logger.Info("got in tap", zap.String("payload", msg))
 
 		_, err = conn.Write(packet.Data())
@@ -132,12 +132,12 @@ func HandleConnEvent(ctx context.Context /*, tun *water.Interface*/, conn net.Co
 		dstNetID, dstTunID := localnet.GetNetIdAndTapId(ctx, dstIP)
 		dstTunName := fmt.Sprintf("server_tun%s_%s", dstNetID, dstTunID)
 
-		// tun, found := storage.GetTun(dstTunName)
-
+		stor.Mu.Lock()
 		tun, found := stor.Tuns[dstTunName]
+		stor.Mu.Unlock()
 		if !found {
-			logger.Error("failed to find tun", zap.Error(err))
-			return
+			logger.Warn("failed to find tun", zap.Error(err))
+			continue
 		}
 
 		n, err = tun.Write(packet.Data())
