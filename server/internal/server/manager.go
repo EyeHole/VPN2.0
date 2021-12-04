@@ -1,13 +1,11 @@
 package server
 
 import (
-	"VPN2.0/server/storage"
-	"context"
-	"fmt"
-
 	"VPN2.0/lib/ctxmeta"
 	"VPN2.0/server/internal/cache"
 	"VPN2.0/server/internal/db"
+	"VPN2.0/server/storage"
+	"context"
 )
 
 type Manager struct {
@@ -46,8 +44,4 @@ func CreateServer(ctx context.Context) (*Manager, error) {
 		cache: cacheManager,
 		storage: connStorage,
 	}, nil
-}
-
-func getBridgeName(netID int) string {
-	return fmt.Sprintf("b-%d", netID)
 }

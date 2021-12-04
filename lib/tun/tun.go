@@ -72,13 +72,6 @@ func HandleTunEvent(ctx context.Context, tunIf *water.Interface, conn net.Conn, 
 			return
 		}
 
-		//ipv4, _ := ipv4Layer.(*layers.IPv4)
-		//srcIP := ipv4.SrcIP.String()
-		//dstIP := ipv4.DstIP.String()
-
-		//logger.Info("got in tap", zap.String("payload", msg))
-
-		//packet = append(packet, []byte("\n")[0])
 		_, err = conn.Write(packet.Data())
 		if err != nil {
 			logger.Error("failed to write to conn", zap.Error(err))

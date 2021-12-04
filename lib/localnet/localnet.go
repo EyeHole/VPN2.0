@@ -32,3 +32,7 @@ func GetNetIdAndTapId(ctx context.Context, ipAddr string) (string, string) {
 
 	return octs[1], octs[3]
 }
+
+func GetConnName(netID int, clientID int) string {
+	return fmt.Sprintf("conn%d_%d", netID, clientID)
+}

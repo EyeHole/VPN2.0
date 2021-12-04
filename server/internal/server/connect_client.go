@@ -5,18 +5,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
 	"math"
 	"net"
 
-	"VPN2.0/lib/localnet"
-
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 	"go.uber.org/zap"
 
 	"VPN2.0/lib/cmd"
 	"VPN2.0/lib/ctxmeta"
-	"VPN2.0/lib/tap"
+	"VPN2.0/lib/localnet"
 )
 
 func (s *Manager) processConnectRequest(ctx context.Context, args []string, conn net.Conn) error {
@@ -74,38 +72,10 @@ func (s *Manager) processConnectRequest(ctx context.Context, args []string, conn
 		return err
 	}
 
-	serverConnName := tap.GetConnName(network.ID, clientID)
+	serverConnName := localnet.GetConnName(network.ID, clientID)
 	s.storage.AddTun(serverConnName, conn)
 
 	ipAddr := fmt.Sprintf("%d.%d.%d.%d/%d", 10, network.ID, 0, clientID, network.Mask)
-
-	//tunIf, err := tap.ConnectToTun(ctx, serverTunName)
-	//if err != nil {
-	//	errSend := sendResult(ctx, respErr, conn)
-	//	if errSend != nil {
-	//		logger.Error("failed to send resp", zap.String("response", respErr))
-	//		return errSend
-	//	}
-	//	return err
-	//}
-	//
-	//brd := localnet.GetBrdFromIp(ctx, tunAddr)
-	//if brd == "" {
-	//	return errors.New("failed to get brd")
-	//}
-	//
-	//err = tap.SetTunUp(ctx, tunAddr, brd, serverTunName)
-	//if err != nil {
-	//	errSend := sendResult(ctx, respErr, conn)
-	//	if errSend != nil {
-	//		logger.Error("failed to send resp", zap.String("response", respErr))
-	//		return errSend
-	//	}
-	//	return err
-	//}
-	//logger.Debug("Set tun up", zap.String("tun_name", serverTunName))
-
-	//storage.AddTun(serverTunName, tunIf)
 
 	respSuccess := fmt.Sprintf("%s %s", cmd.SuccessResponse, ipAddr)
 	err = sendResult(ctx, respSuccess, conn)
@@ -116,7 +86,6 @@ func (s *Manager) processConnectRequest(ctx context.Context, args []string, conn
 	logger.Debug("sent resp", zap.String("response", respSuccess))
 
 	errCh := make(chan error, 1)
-	//go tap.HandleTunEvent(ctx, tunIf, conn, errCh)
 	go s.HandleConnEvent(ctx, conn, errCh)
 
 	close(errCh)
@@ -144,7 +113,6 @@ func (s *Manager) HandleConnEvent(ctx context.Context, conn net.Conn, errCh chan
 		}
 
 		validBuf := bufPool[:n]
-		fmt.Println("CONNECTION ", validBuf)
 
 		packet := gopacket.NewPacket(validBuf, layers.LayerTypeIPv4, gopacket.Default)
 		ipv4Layer := packet.Layer(layers.LayerTypeIPv4)
@@ -170,7 +138,6 @@ func (s *Manager) HandleConnEvent(ctx context.Context, conn net.Conn, errCh chan
 		}
 
 		n, err = dstConn.Write(packet.Data())
-		fmt.Println("WROTE ", n)
 		if err != nil {
 			logger.Error("failed to write to conn", zap.Error(err))
 			errCh <- err
