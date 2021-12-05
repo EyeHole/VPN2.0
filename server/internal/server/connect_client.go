@@ -87,8 +87,14 @@ func (s *Manager) processConnectRequest(ctx context.Context, args []string, conn
 	logger.Debug("sent resp", zap.String("response", respSuccess))
 
 	err = s.HandleConnEvent(ctx, conn)
+	errRemoval := s.cache.RemoveClient(ctx, network.ID, clientID)
+
 	if err != nil {
 		return err
+	}
+
+	if errRemoval != nil {
+		return errRemoval
 	}
 
 	return nil

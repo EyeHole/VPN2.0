@@ -61,3 +61,15 @@ func (m *Manager) SetClient(ctx context.Context, netID int, clientID int) error 
 
 	return nil
 }
+
+func (m *Manager) RemoveClient(ctx context.Context, netID int, clientID int) error {
+	logger := ctxmeta.GetLogger(ctx)
+
+	_, err := m.redis.Do("HDEL", strconv.Itoa(netID), strconv.Itoa(clientID))
+	if err != nil {
+		logger.Error("failed to del clientID", zap.Error(err))
+		return err
+	}
+
+	return nil
+}
