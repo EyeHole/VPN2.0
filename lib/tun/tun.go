@@ -3,9 +3,11 @@ package tun
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
+	"io"
 	"net"
 	"os/exec"
 	"sync"
@@ -65,6 +67,7 @@ func HandleTunEvent(ctx context.Context, tunIf *water.Interface, wg *sync.WaitGr
 		if err != nil {
 			logger.Error("failed to read from tun", zap.Error(err))
 			errCh <- err
+			return
 		}
 		validBuf := buffer[:n]
 
@@ -72,6 +75,7 @@ func HandleTunEvent(ctx context.Context, tunIf *water.Interface, wg *sync.WaitGr
 		ipv4Layer := packet.Layer(layers.LayerTypeIPv4)
 		if ipv4Layer == nil {
 			logger.Error("ipv4 error")
+			errCh <- errors.New("ipv4 error")
 			return
 		}
 
@@ -79,6 +83,7 @@ func HandleTunEvent(ctx context.Context, tunIf *water.Interface, wg *sync.WaitGr
 		if err != nil {
 			logger.Error("failed to write to conn", zap.Error(err))
 			errCh <- err
+			return
 		}
 	}
 }
@@ -94,8 +99,14 @@ func HandleConnTunEvent(ctx context.Context, tunIf *water.Interface, wg *sync.Wa
 		n, err := reader.Read(bufPool)
 
 		if err != nil {
+			if err == io.EOF {
+				logger.Warn("connection was closed")
+				errCh <- err
+				return
+			}
 			logger.Error("failed to read from conn", zap.Error(err))
 			errCh <- err
+			return
 		}
 
 		validBuf := bufPool[:n]
@@ -104,6 +115,7 @@ func HandleConnTunEvent(ctx context.Context, tunIf *water.Interface, wg *sync.Wa
 		ipv4Layer := packet.Layer(layers.LayerTypeIPv4)
 		if ipv4Layer == nil {
 			logger.Error("ipv4 error")
+			errCh <- errors.New("ipv4 error")
 			return
 		}
 
@@ -118,6 +130,7 @@ func HandleConnTunEvent(ctx context.Context, tunIf *water.Interface, wg *sync.Wa
 		if err != nil {
 			logger.Error("failed to write to tun", zap.Error(err))
 			errCh <- err
+			return
 		}
 	}
 }

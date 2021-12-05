@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"net"
 
@@ -106,6 +107,10 @@ func (s *Manager) HandleConnEvent(ctx context.Context, conn net.Conn) error {
 		n, err := reader.Read(bufPool)
 
 		if err != nil {
+			if err == io.EOF {
+				logger.Warn("connection was closed")
+				return nil
+			}
 			logger.Error("failed to read from conn", zap.Error(err))
 			return err
 		}

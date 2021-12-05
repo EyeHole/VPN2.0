@@ -28,22 +28,22 @@ func (s *Manager) RunServer(ctx context.Context, serverAddr string) error {
 	for caughtErr == nil {
 		select {
 		case errCheck := <-errCh:
-			logger.Error("caught error!")
+			logger.Error("caught error!", zap.Error(errCheck))
 			caughtErr = errCheck
 		default:
 			logger.Debug("nothing")
+			conn, err := listener.Accept()
+			if err != nil {
+				logger.Warn("got error while trying to accept conn", zap.Error(err))
+				continue
+			}
+
+			logger.Debug("someone connected")
+
+			go s.handleClient(ctx, conn, errCh)
 		}
-
-		conn, err := listener.Accept()
-		if err != nil {
-			logger.Warn("got error while trying to accept conn", zap.Error(err))
-			continue
-		}
-
-		logger.Debug("someone connected")
-
-		go s.handleClient(ctx, conn, errCh)
 	}
+	close(errCh)
 
 	return caughtErr
 }
@@ -112,5 +112,6 @@ func (s *Manager) handleClient(ctx context.Context, conn net.Conn, errCh chan er
 	err = s.processCmd(ctx, cmd, conn)
 	if err != nil {
 		errCh <- err
+		return
 	}
 }
