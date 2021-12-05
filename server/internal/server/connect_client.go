@@ -82,6 +82,7 @@ func (s *Manager) processConnectRequest(ctx context.Context, args []string, conn
 	err = sendResult(ctx, respSuccess, conn)
 	if err != nil {
 		logger.Error("failed to send resp", zap.String("response", respSuccess))
+		_ = s.cache.RemoveClient(ctx, network.ID, clientID)
 		return err
 	}
 	logger.Debug("sent resp", zap.String("response", respSuccess))
