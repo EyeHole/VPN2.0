@@ -78,6 +78,10 @@ func (s *Manager) processCmd(ctx context.Context, cmd string, conn net.Conn) err
 	case commands.ConnectCmd:
 		logger.Debug("start processing connect cmd")
 		return s.processConnectRequest(ctx, args, conn)
+		
+	case commands.LeaveCmd:
+		logger.Debug("start processing leave cmd")
+		return s.processLeaveRequest(ctx, args, conn)
 	}
 
 	resp := "wrong cmd"

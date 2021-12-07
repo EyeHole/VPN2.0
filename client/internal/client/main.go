@@ -1,25 +1,23 @@
 package client
 
 import (
-	"VPN2.0/lib/localnet"
 	"bufio"
 	"context"
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
 	"net"
 	"sync"
-	"time"
 
 	"go.uber.org/zap"
 
+	"VPN2.0/client/internal/tun"
 	commands "VPN2.0/lib/cmd"
 	"VPN2.0/lib/ctxmeta"
-	"VPN2.0/lib/tun"
+	"VPN2.0/lib/localnet"
 )
 
-func processResp(ctx context.Context, conn net.Conn, cmdName string, errCh chan error) {
+func (c *Manager) processResp(ctx context.Context, conn net.Conn, cmdName string, errCh chan error) {
 	logger := ctxmeta.GetLogger(ctx)
 
 	clientReader := bufio.NewReader(conn)
@@ -51,8 +49,15 @@ func processResp(ctx context.Context, conn net.Conn, cmdName string, errCh chan 
 			return
 		}
 
-		rand.Seed(time.Now().UnixNano())
-		tunName := tun.GetTunName("client", 1, 10+rand.Intn(191))
+		id, err := localnet.GetIDFromIp(ctx, respStrings[1])
+		if err != nil {
+			errCh <- err
+			return
+		}
+
+		c.SetClientID(id)
+
+		tunName := tun.GetTunName("client", 1, c.ID)
 		tunIf, err := tun.ConnectToTun(ctx, tunName)
 		if err != nil {
 			errCh <- err
@@ -75,10 +80,26 @@ func processResp(ctx context.Context, conn net.Conn, cmdName string, errCh chan 
 
 		var wg sync.WaitGroup
 		wg.Add(1)
-		go tun.HandleTunEvent(ctx, tunIf, &wg, conn, errCh)
+		go c.HandleTunEvent(ctx, tunIf, &wg, conn, errCh)
 		wg.Add(1)
-		go tun.HandleConnTunEvent(ctx, tunIf, &wg, conn, errCh)
+		go c.HandleConnTunEvent(ctx, tunIf, &wg, conn, errCh)
 		wg.Wait()
+	case commands.LeaveCmd:
+		respStrings := commands.GetWords(resp)
+		if respStrings[0] != commands.SuccessResponse {
+			logger.Error("got error in server resp")
+			errCh <- errors.New("error in resp")
+			return
+		}
+
+		tunName := tun.GetTunName("client", 1, c.ID)
+		c.SetClientID(IDUndefined)
+
+		err := tun.SetTunDown(ctx, tunName)
+		if err != nil {
+			errCh <- err
+			return
+		}
 	}
 }
 
@@ -92,7 +113,7 @@ func (c *Manager) makeRequest(ctx context.Context, msg string, cmdName string, a
 		return
 	}
 
-	go processResp(ctx, conn, cmdName, errCh)
+	go c.processResp(ctx, conn, cmdName, errCh)
 	_, err = conn.Write([]byte(msg + "\n"))
 	if err != nil {
 		logger.Error("failed to write to conn", zap.Error(err))
@@ -173,6 +194,41 @@ func (c *Manager) processConnectRequest(ctx context.Context, errCh chan error, i
 	c.makeRequest(ctx, msg, commands.ConnectCmd, addr, errCh)
 }
 
+func (c *Manager) processLeaveRequest(ctx context.Context, errCh chan error, inputMutex *bool) {
+	logger := ctxmeta.GetLogger(ctx)
+
+	var name, password, addr string
+	fmt.Println("Enter localnet name:")
+	_, err := fmt.Scanf("%s", &name)
+	if err != nil {
+		logger.Error("got error while scanning create localnet name", zap.Error(err))
+		errCh <- err
+		return
+	}
+
+	fmt.Println("Enter localnet password:")
+	_, err = fmt.Scanf("%s", &password)
+	if err != nil {
+		logger.Error("got error while scanning create localnet password", zap.Error(err))
+		errCh <- err
+		return
+	}
+
+	fmt.Println("Enter server addr:")
+	_, err = fmt.Scanf("%s", &addr)
+	if err != nil {
+		logger.Error("got error while scanning addr", zap.Error(err))
+		errCh <- err
+		return
+	}
+
+	msg := fmt.Sprintf("%s %s %s %d", commands.LeaveCmd, name, password, c.ID)
+
+	*inputMutex = true
+
+	c.makeRequest(ctx, msg, commands.LeaveCmd, addr, errCh)
+}
+
 func (c *Manager) processCmd(ctx context.Context, cmd string, errCh chan error, inputMutex *bool) {
 	logger := ctxmeta.GetLogger(ctx)
 
@@ -181,6 +237,8 @@ func (c *Manager) processCmd(ctx context.Context, cmd string, errCh chan error, 
 		c.processCreateRequest(ctx, errCh, inputMutex)
 	case commands.ConnectCmd:
 		c.processConnectRequest(ctx, errCh, inputMutex)
+	case commands.LeaveCmd:
+		c.processLeaveRequest(ctx, errCh, inputMutex)
 	default:
 		logger.Error("undefined cmd")
 		errCh <- errors.New("undefined cmd")

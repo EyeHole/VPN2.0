@@ -20,15 +20,21 @@ func SetStorage() *Storage {
 }
 
 
-func (s *Storage) AddTun(name string, conn net.Conn) {
+func (s *Storage) AddConn(name string, conn net.Conn) {
 	s.Mu.Lock()
 	s.Connections[name] = conn
 	s.Mu.Unlock()
 }
 
-func (s *Storage) GetTun(name string) (net.Conn, bool) {
+func (s *Storage) GetConn(name string) (net.Conn, bool) {
 	s.Mu.Lock()
 	conn, err := s.Connections[name]
 	s.Mu.Unlock()
 	return conn, err
+}
+
+func (s *Storage) DelConn(name string) {
+	s.Mu.Lock()
+	s.Connections[name] = nil
+	s.Mu.Unlock()
 }

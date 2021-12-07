@@ -74,7 +74,7 @@ func (s *Manager) processConnectRequest(ctx context.Context, args []string, conn
 	}
 
 	serverConnName := localnet.GetConnName(network.ID, clientID)
-	s.storage.AddTun(serverConnName, conn)
+	s.storage.AddConn(serverConnName, conn)
 
 	ipAddr := fmt.Sprintf("%d.%d.%d.%d/%d", 10, network.ID, 0, clientID, network.Mask)
 
@@ -138,10 +138,10 @@ func (s *Manager) HandleConnEvent(ctx context.Context, conn net.Conn) error {
 		fmt.Println("src: ", srcIP)
 		fmt.Println("dest: ", dstIP)
 
-		dstNetID, dstTunID := localnet.GetNetIdAndTapId(ctx, dstIP)
+		dstNetID, dstTunID := localnet.GetNetIdAndTunId(ctx, dstIP)
 		dstConnName := fmt.Sprintf("conn%s_%s", dstNetID, dstTunID)
 
-		dstConn, found := s.storage.GetTun(dstConnName)
+		dstConn, found := s.storage.GetConn(dstConnName)
 		if !found {
 			logger.Warn("failed to find conn", zap.Error(err))
 			continue
