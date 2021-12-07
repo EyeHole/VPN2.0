@@ -108,3 +108,15 @@ func (m *Manager) GetAllClients(ctx context.Context, netID int) ([]int, error) {
 
 	return netClients, nil
 }
+
+func (m *Manager) FlushAllNetworks(ctx context.Context) error {
+	logger := ctxmeta.GetLogger(ctx)
+
+	_, err := m.redis.Do("FLUSHDB")
+	if err != nil {
+		logger.Error("failed to del network", zap.Error(err))
+		return err
+	}
+
+	return nil
+}

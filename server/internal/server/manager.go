@@ -26,11 +26,19 @@ func CreateServer(ctx context.Context) (*Manager, error) {
 		logger.Error("failed to create db manager")
 		return nil, err
 	}
+
 	cacheManager, err := cache.NewCacheManager(ctx)
 	if err != nil {
 		logger.Error("failed to create cache manager")
 		return nil, err
 	}
+
+	err = cacheManager.FlushAllNetworks(ctx)
+	if err != nil {
+		logger.Error("failed to flush cache")
+		return nil, err
+	}
+
 
 	if err := dbManager.CreateNetworksTable(ctx); err != nil {
 		return nil, err
@@ -38,6 +46,7 @@ func CreateServer(ctx context.Context) (*Manager, error) {
 	logger.Debug("set up networks table")
 
 	connStorage := storage.SetStorage()
+
 
 	return &Manager{
 		db:    dbManager,
