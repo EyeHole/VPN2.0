@@ -73,3 +73,38 @@ func (m *Manager) RemoveClient(ctx context.Context, netID int, clientID int) err
 
 	return nil
 }
+
+func (m *Manager) RemoveNetwork(ctx context.Context, netID int) error {
+	logger := ctxmeta.GetLogger(ctx)
+
+	_, err := m.redis.Do("DEL", strconv.Itoa(netID))
+	if err != nil {
+		logger.Error("failed to del network", zap.Error(err))
+		return err
+	}
+
+	return nil
+}
+
+func (m *Manager) GetAllClients(ctx context.Context, netID int) ([]int, error) {
+	logger := ctxmeta.GetLogger(ctx)
+
+	netClientsStr, err := redis.StringMap(m.redis.Do("HGETALL", strconv.Itoa(netID)))
+	if err != nil {
+		logger.Error("failed to get all clients in net", zap.Error(err))
+		return nil, err
+	}
+
+	var netClients []int
+	for key, _ := range netClientsStr {
+		clientID, err := strconv.Atoi(key)
+		if err != nil {
+			logger.Error("failed to parse clientID")
+			return nil, err
+		}
+
+		netClients = append(netClients, clientID)
+	}
+
+	return netClients, nil
+}

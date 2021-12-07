@@ -27,6 +27,7 @@ const (
 								);`
 	insertNetworkQuery = `INSERT INTO networks (net_name, password, mask) VALUES (?, ?, ?)`
 	getNetworkQuery    = `SELECT id, net_name, password, mask FROM networks WHERE net_name = $1 AND password = $2`
+	deleteNetworkQuery = `DELETE FROM networks WHERE net_name = $1 AND password = $2`
 )
 
 func NewDBManager(ctx context.Context) (*Manager, error) {
@@ -91,4 +92,16 @@ func (m *Manager) GetNetwork(ctx context.Context, name string, passwordHash stri
 	}
 
 	return network, nil
+}
+
+func (m *Manager) DeleteNetwork(ctx context.Context, name string, passwordHash string) error {
+	logger := ctxmeta.GetLogger(ctx)
+
+	_, err := m.db.Exec(deleteNetworkQuery, name, passwordHash)
+	if err != nil {
+		logger.Error("failed to delete network from db", zap.Error(err))
+		return err
+	}
+
+	return nil
 }

@@ -100,6 +100,22 @@ func (c *Manager) processResp(ctx context.Context, conn net.Conn, cmdName string
 			errCh <- err
 			return
 		}
+	case commands.DeleteCmd:
+		respStrings := commands.GetWords(resp)
+		if respStrings[0] != commands.SuccessResponse {
+			logger.Error("got error in server resp")
+			errCh <- errors.New("error in resp")
+			return
+		}
+
+		tunName := tun.GetTunName("client", 1, c.ID)
+		c.SetClientID(IDUndefined)
+
+		err := tun.SetTunDown(ctx, tunName)
+		if err != nil {
+			errCh <- err
+			return
+		}
 	}
 }
 
@@ -229,6 +245,41 @@ func (c *Manager) processLeaveRequest(ctx context.Context, errCh chan error, inp
 	c.makeRequest(ctx, msg, commands.LeaveCmd, addr, errCh)
 }
 
+func (c *Manager) processDeleteRequest(ctx context.Context, errCh chan error, inputMutex *bool) {
+	logger := ctxmeta.GetLogger(ctx)
+
+	var name, password, addr string
+	fmt.Println("Enter localnet name:")
+	_, err := fmt.Scanf("%s", &name)
+	if err != nil {
+		logger.Error("got error while scanning create localnet name", zap.Error(err))
+		errCh <- err
+		return
+	}
+
+	fmt.Println("Enter localnet password:")
+	_, err = fmt.Scanf("%s", &password)
+	if err != nil {
+		logger.Error("got error while scanning create localnet password", zap.Error(err))
+		errCh <- err
+		return
+	}
+
+	fmt.Println("Enter server addr:")
+	_, err = fmt.Scanf("%s", &addr)
+	if err != nil {
+		logger.Error("got error while scanning addr", zap.Error(err))
+		errCh <- err
+		return
+	}
+
+	msg := fmt.Sprintf("%s %s %s", commands.DeleteCmd, name, password)
+
+	*inputMutex = true
+
+	c.makeRequest(ctx, msg, commands.DeleteCmd, addr, errCh)
+}
+
 func (c *Manager) processCmd(ctx context.Context, cmd string, errCh chan error, inputMutex *bool) {
 	logger := ctxmeta.GetLogger(ctx)
 
@@ -239,6 +290,8 @@ func (c *Manager) processCmd(ctx context.Context, cmd string, errCh chan error, 
 		c.processConnectRequest(ctx, errCh, inputMutex)
 	case commands.LeaveCmd:
 		c.processLeaveRequest(ctx, errCh, inputMutex)
+	case commands.DeleteCmd:
+		c.processDeleteRequest(ctx, errCh, inputMutex)
 	default:
 		logger.Error("undefined cmd")
 		errCh <- errors.New("undefined cmd")

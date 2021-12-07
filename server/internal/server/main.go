@@ -51,6 +51,7 @@ func (s *Manager) RunServer(ctx context.Context, serverAddr string) error {
 func sendResult(ctx context.Context, result string, conn net.Conn) error {
 	logger := ctxmeta.GetLogger(ctx)
 
+	logger.Debug("sending result", zap.String("msg", result))
 	_, err := conn.Write([]byte(result + "\n"))
 	if err != nil {
 		logger.Error("failed to write to conn", zap.Error(err))
@@ -82,6 +83,10 @@ func (s *Manager) processCmd(ctx context.Context, cmd string, conn net.Conn) err
 	case commands.LeaveCmd:
 		logger.Debug("start processing leave cmd")
 		return s.processLeaveRequest(ctx, args, conn)
+
+	case commands.DeleteCmd:
+		logger.Debug("start processing delete cmd")
+		return s.processDeleteRequest(ctx, args, conn)
 	}
 
 	resp := "wrong cmd"
