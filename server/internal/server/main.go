@@ -31,7 +31,6 @@ func (s *Manager) RunServer(ctx context.Context, serverAddr string) error {
 			logger.Error("caught error!", zap.Error(errCheck))
 			caughtErr = errCheck
 		default:
-			logger.Debug("nothing")
 			conn, err := listener.Accept()
 			if err != nil {
 				logger.Warn("got error while trying to accept conn", zap.Error(err))

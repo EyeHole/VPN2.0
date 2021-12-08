@@ -26,7 +26,7 @@ const (
     								mask INTEGER NOT NULL
 								);`
 	insertNetworkQuery = `INSERT INTO networks (net_name, password, mask) VALUES (?, ?, ?)`
-	getNetworkQuery    = `SELECT id, net_name, password, mask FROM networks WHERE net_name = $1 AND password = $2`
+	getNetworkQuery    = `SELECT id, net_name, password, mask FROM networks WHERE net_name = $1`
 	deleteNetworkQuery = `DELETE FROM networks WHERE net_name = $1 AND password = $2`
 )
 
@@ -76,11 +76,11 @@ func (m *Manager) AddNetwork(ctx context.Context, name string, passwordHash stri
 	return int(id), nil
 }
 
-func (m *Manager) GetNetwork(ctx context.Context, name string, passwordHash string) (*models.Network, error) {
+func (m *Manager) GetNetwork(ctx context.Context, name string) (*models.Network, error) {
 	logger := ctxmeta.GetLogger(ctx)
 
 	network := &models.Network{}
-	err := m.db.QueryRow(getNetworkQuery, name, passwordHash).Scan(&network.ID, &network.NetName, &network.Password, &network.Mask)
+	err := m.db.QueryRow(getNetworkQuery, name).Scan(&network.ID, &network.NetName, &network.Password, &network.Mask)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			logger.Error("no network row with such args")

@@ -2,6 +2,7 @@ package server
 
 import (
 	"VPN2.0/lib/ctxmeta"
+	"VPN2.0/server/internal/security"
 	"context"
 	"errors"
 	"go.uber.org/zap"
@@ -23,7 +24,11 @@ func (s *Manager) processNetworkCreationRequest(ctx context.Context, args []stri
 		return errors.New("wrong args amount")
 	}
 
-	_, err := s.db.AddNetwork(ctx, args[1], args[2], mask)
+	passwordHash, err := security.HashPassword(args[2])
+	if err != nil {
+		logger.Error("failed to generate hash from password", zap.Error(err))
+	}
+	_, err = s.db.AddNetwork(ctx, args[1], passwordHash, mask)
 
 	if err != nil {
 		errSend := sendResult(ctx, respErr, conn)

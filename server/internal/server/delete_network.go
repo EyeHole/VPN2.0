@@ -2,6 +2,7 @@ package server
 
 import (
 	"VPN2.0/lib/cmd"
+	"VPN2.0/server/internal/security"
 	"context"
 	"errors"
 	"fmt"
@@ -26,8 +27,19 @@ func (s *Manager) processDeleteRequest(ctx context.Context, args []string, conn 
 		return errors.New("wrong args amount")
 	}
 
-	network, err := s.db.GetNetwork(ctx, args[1], args[2])
+	network, err := s.db.GetNetwork(ctx, args[1])
 	if err != nil {
+		errSend := sendResult(ctx, respErr, conn)
+		if errSend != nil {
+			logger.Error("failed to send resp", zap.String("response", respErr))
+			return errSend
+		}
+		return err
+	}
+
+	if !security.CheckPasswordHash(args[2], network.Password) {
+		logger.Error("wrong password")
+		respErr = "incorrect password"
 		errSend := sendResult(ctx, respErr, conn)
 		if errSend != nil {
 			logger.Error("failed to send resp", zap.String("response", respErr))
