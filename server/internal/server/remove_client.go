@@ -17,7 +17,7 @@ import (
 
 func (s *Manager) processLeaveRequest(ctx context.Context, args []string, conn net.Conn) error {
 	logger := ctxmeta.GetLogger(ctx)
-	respErr := "failed to disconnect"
+	respErr := "failed_to_disconnect"
 
 	if len(args) < 4 {
 		logger.Error("wrong amount of args")
@@ -31,23 +31,29 @@ func (s *Manager) processLeaveRequest(ctx context.Context, args []string, conn n
 
 	network, err := s.db.GetNetwork(ctx, args[1])
 	if err != nil {
+		if err.Error() == cmd.NoNetworkResponse {
+			respErr = err.Error()
+		}
 		errSend := sendResult(ctx, respErr, conn)
 		if errSend != nil {
 			logger.Error("failed to send resp", zap.String("response", respErr))
 			return errSend
+		}
+		if err.Error() == cmd.NoNetworkResponse {
+			return nil
 		}
 		return err
 	}
 
 	if !security.CheckPasswordHash(args[2], network.Password) {
 		logger.Error("wrong password")
-		respErr = "incorrect password"
+		respErr = "incorrect_password"
 		errSend := sendResult(ctx, respErr, conn)
 		if errSend != nil {
 			logger.Error("failed to send resp", zap.String("response", respErr))
 			return errSend
 		}
-		return err
+		return nil
 	}
 
 	clientID, err := strconv.Atoi(args[3])

@@ -21,7 +21,7 @@ import (
 
 func (s *Manager) processConnectRequest(ctx context.Context, args []string, conn net.Conn) error {
 	logger := ctxmeta.GetLogger(ctx)
-	respErr := "failed to connect"
+	respErr := "failed_to_connect"
 
 	if len(args) < 3 {
 		logger.Error("wrong amount of args")
@@ -35,10 +35,16 @@ func (s *Manager) processConnectRequest(ctx context.Context, args []string, conn
 
 	network, err := s.db.GetNetwork(ctx, args[1])
 	if err != nil {
+		if err.Error() == cmd.NoNetworkResponse {
+			respErr = err.Error()
+		}
 		errSend := sendResult(ctx, respErr, conn)
 		if errSend != nil {
 			logger.Error("failed to send resp", zap.String("response", respErr))
 			return errSend
+		}
+		if err.Error() == cmd.NoNetworkResponse {
+			return nil
 		}
 		return err
 	}
@@ -51,7 +57,7 @@ func (s *Manager) processConnectRequest(ctx context.Context, args []string, conn
 			logger.Error("failed to send resp", zap.String("response", respErr))
 			return errSend
 		}
-		return err
+		return nil
 	}
 
 	clientID, err := s.cache.GetFirstAvailableClient(ctx, network.ID, getNetworkCapacity(network.Mask))

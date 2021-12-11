@@ -11,7 +11,7 @@ import (
 
 func (s *Manager) processNetworkCreationRequest(ctx context.Context, args []string, conn net.Conn) error {
 	logger := ctxmeta.GetLogger(ctx)
-	respErr := "failed to create network"
+	respErr := "failed_to_create_network"
 
 	if len(args) < 3 {
 		logger.Error("wrong amount of args")

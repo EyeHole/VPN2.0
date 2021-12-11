@@ -6,11 +6,13 @@ import (
 )
 
 const (
-	CreateCmd       = "create"
-	ConnectCmd      = "connect"
-	LeaveCmd        = "leave"
-	DeleteCmd       = "delete"
-	SuccessResponse = "success"
+	CreateCmd  = "create"
+	ConnectCmd = "connect"
+	LeaveCmd   = "leave"
+	DeleteCmd  = "delete"
+
+	SuccessResponse   = "success"
+	NoNetworkResponse = "no_network"
 )
 
 func GetWords(str string) []string {

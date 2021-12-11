@@ -15,7 +15,7 @@ import (
 
 func (s *Manager) processDeleteRequest(ctx context.Context, args []string, conn net.Conn) error {
 	logger := ctxmeta.GetLogger(ctx)
-	respErr := "failed to delete network"
+	respErr := "failed_to_delete_network"
 
 	if len(args) < 3 {
 		logger.Error("wrong amount of args")
@@ -29,23 +29,29 @@ func (s *Manager) processDeleteRequest(ctx context.Context, args []string, conn 
 
 	network, err := s.db.GetNetwork(ctx, args[1])
 	if err != nil {
+		if err.Error() == cmd.NoNetworkResponse {
+			respErr = err.Error()
+		}
 		errSend := sendResult(ctx, respErr, conn)
 		if errSend != nil {
 			logger.Error("failed to send resp", zap.String("response", respErr))
 			return errSend
+		}
+		if err.Error() == cmd.NoNetworkResponse {
+			return nil
 		}
 		return err
 	}
 
 	if !security.CheckPasswordHash(args[2], network.Password) {
 		logger.Error("wrong password")
-		respErr = "incorrect password"
+		respErr = "incorrect_password"
 		errSend := sendResult(ctx, respErr, conn)
 		if errSend != nil {
 			logger.Error("failed to send resp", zap.String("response", respErr))
 			return errSend
 		}
-		return err
+		return nil
 	}
 
 	clientIDs, err := s.cache.GetAllClients(ctx, network.ID)

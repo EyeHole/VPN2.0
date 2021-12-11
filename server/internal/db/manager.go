@@ -1,6 +1,7 @@
 package db
 
 import (
+	"VPN2.0/lib/cmd"
 	"context"
 	"database/sql"
 	"errors"
@@ -84,7 +85,7 @@ func (m *Manager) GetNetwork(ctx context.Context, name string) (*models.Network,
 	if err != nil {
 		if err == sql.ErrNoRows {
 			logger.Error("no network row with such args")
-			return nil, errors.New("row not found")
+			return nil, errors.New(cmd.NoNetworkResponse)
 		}
 
 		logger.Error("failed to get network from db", zap.Error(err))
